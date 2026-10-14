@@ -16,22 +16,80 @@ const res = (status, detail) => ({ status, detail })
 const range = (len, min, max) => len >= min && len <= max
 const kib = (b) => `${Math.round(b / 1024)} KiB`
 
-// LCP + explicación cuando la imagen principal se descubre tarde o se carga en diferido.
-function lcpResult(data, label) {
-  const v = data?.metrics.lcp
+const LEVELS = ['pass', 'partial', 'fail']
+const HELD = ' · dentro del margen de variación, se mantiene la evaluación anterior'
+
+// Califica una métrica con umbrales [bueno, mejorable]. Para que volver a analizar un sitio
+// sin cambios no cambie la nota, si el valor cae a menos de `margin` del umbral que separa
+// el estado nuevo del anterior, se conserva el anterior (histéresis).
+function grade(v, [good, poor], prev, { higher = false, margin }) {
+  const rankOf = (x) => (higher ? (x >= good ? 0 : x >= poor ? 1 : 2) : x <= good ? 0 : x <= poor ? 1 : 2)
+  const rank = rankOf(v)
+  const prevRank = LEVELS.indexOf(prev)
+  if (prevRank < 0 || prevRank === rank || Math.abs(prevRank - rank) > 1) return { status: LEVELS[rank], held: false }
+  const boundary = Math.min(prevRank, rank) === 0 ? good : poor
+  return Math.abs(v - boundary) <= margin ? { status: prev, held: true } : { status: LEVELS[rank], held: false }
+}
+
+function metricResult(v, thresholds, prev, opts, detail) {
   if (v == null) return null
-  const status = v <= 2500 ? 'pass' : v <= 4000 ? 'partial' : 'fail'
-  let detail = `LCP ${label}: ${ms(v)}`
-  if (status !== 'pass') {
-    const failed = data.audits.lcpDiscoveryFailed || []
-    if (failed.length) detail += ` · Elemento principal: ${failed.join(', ')}`
-    else if (data.audits.lcpDiscovery != null && data.audits.lcpDiscovery < 0.9) {
-      detail += ' · La imagen principal se descubre tarde (revisar loading="lazy" y fetchpriority="high")'
-    }
-    const fcp = data.metrics.fcp
-    if (fcp != null && v - fcp > 2000) detail += ` · El primer contenido aparece en ${ms(fcp)}, pero el principal tarda ${ms(v - fcp)} más`
+  const g = grade(v, thresholds, prev, opts)
+  return res(g.status, detail + (g.held ? HELD : ''))
+}
+
+// Si Google tiene datos reales de usuarios de esa página (CrUX, promedio de 28 días), se usan:
+// son los que cuentan para el posicionamiento y no varían entre análisis.
+const fieldValue = (data, metric) => (data?.field?.scope === 'page' ? data.field[metric] ?? null : null)
+
+const truncate = (s, n) => (s && s.length > n ? `${s.slice(0, n - 1)}…` : s)
+
+const PHASES = {
+  timeToFirstByte: 'respuesta del servidor (TTFB)',
+  resourceLoadDelay: 'espera antes de empezar a descargar el recurso (se descubre o se prioriza tarde)',
+  resourceLoadDuration: 'descarga del recurso (archivo pesado)',
+  elementRenderDelay: 'retraso de renderizado: el recurso ya llegó, pero se pinta tarde (CSS/fuentes que bloquean, JavaScript o animaciones de entrada)',
+}
+
+// Fase del LCP que más tiempo consume (solo si es claramente dominante).
+function dominantPhase(phases) {
+  if (!phases) return null
+  const entries = Object.entries(phases).filter(([k, v]) => PHASES[k] && v > 0)
+  const total = entries.reduce((n, [, v]) => n + v, 0)
+  if (!total) return null
+  const [key, value] = entries.sort((a, b) => b[1] - a[1])[0]
+  const pct = Math.round((value / total) * 100)
+  return pct >= 40 ? { pct, text: PHASES[key] } : null
+}
+
+// LCP + qué elemento es, en qué fase se pierde el tiempo y qué le falta.
+function lcpResult(data, label, prev) {
+  if (data?.metrics.lcp == null) return null
+  const field = fieldValue(data, 'lcp')
+  const v = field ?? data.metrics.lcp
+  // Resultado bimodal (unas mediciones rápidas y otras lentas): la mediana depende de cuántas
+  // caigan en cada grupo, así que se evalúa siempre como "Parcial": la página a veces carga bien
+  // y a veces no, y eso es lo que hay que corregir.
+  const unstable = field == null && data.unstable
+  const g = unstable ? { status: 'partial', held: false } : grade(v, [2500, 4000], prev, { margin: v > 3200 ? 300 : 200 })
+  const status = g.status
+  let detail = field != null ? `LCP ${label} (usuarios reales): ${ms(v)}` : `LCP ${label}: ${ms(v)}`
+  if (unstable) {
+    const s = data.spread.lcp
+    const slow = s.filter((x) => x > 2500).length
+    detail += ` · Inestable: ${slow} de ${s.length} mediciones superaron 2,5 s (entre ${ms(Math.min(...s))} y ${ms(Math.max(...s))}); a veces el elemento principal se pinta tarde`
   }
-  return res(status, detail)
+  if (status !== 'pass') {
+    const el = data.audits.lcpElement
+    if (el) detail += ` · Elemento LCP: «${truncate(el.label || el.snippet || el.selector, 60)}»${el.selector ? ` (${el.selector.split(' > ').pop()})` : ''}`
+    const phase = dominantPhase(data.audits.lcpPhases)
+    if (phase) detail += ` · ${phase.pct} % del tiempo es ${phase.text}`
+    const failed = data.audits.lcpDiscoveryFailed || []
+    if (failed.length) detail += ` · En ese elemento: ${failed.join(', ')}`
+    else if (data.audits.lcpDiscovery != null && data.audits.lcpDiscovery < 0.9) {
+      detail += ' · El elemento LCP se descubre tarde (revisar loading="lazy" y fetchpriority="high")'
+    }
+  }
+  return res(status, detail + (g.held ? HELD : ''))
 }
 
 export const CATEGORIES = [
@@ -110,53 +168,50 @@ export const CATEGORIES = [
       {
         id: 'lcp-mobile',
         title: 'LCP en celular ≤ 2,5 s',
-        help: 'Largest Contentful Paint: cuánto tarda en aparecer el elemento principal. Bueno ≤ 2,5 s · Mejorable ≤ 4 s.',
-        auto: ({ mobile }) => lcpResult(mobile, 'móvil'),
+        help: 'Largest Contentful Paint: cuánto tarda en aparecer el elemento más grande de la primera pantalla (no siempre es la imagen hero: puede ser un logo o un título). Se mide simulando un celular de gama media con 4G lento, por eso da más que al abrirla en un buen wifi. Bueno ≤ 2,5 s · Mejorable ≤ 4 s.',
+        auto: ({ mobile }, prev) => lcpResult(mobile, 'móvil', prev),
       },
       {
         id: 'lcp-desktop',
         title: 'LCP en escritorio ≤ 2,5 s',
         help: 'Lo mismo, medido en un computador con buena conexión.',
-        auto: ({ desktop }) => lcpResult(desktop, 'escritorio'),
+        auto: ({ desktop }, prev) => lcpResult(desktop, 'escritorio', prev),
       },
       {
         id: 'cls',
         title: 'Estabilidad visual (CLS ≤ 0,1)',
         help: 'Cumulative Layout Shift: que los elementos no "salten" mientras carga la página.',
-        auto: ({ mobile }) => {
-          const v = mobile?.metrics.cls
-          if (v == null) return null
-          return res(v <= 0.1 ? 'pass' : v <= 0.25 ? 'partial' : 'fail', `CLS: ${v.toFixed(3)}`)
+        auto: ({ mobile }, prev) => {
+          const field = fieldValue(mobile, 'cls')
+          const v = field ?? mobile?.metrics.cls
+          return metricResult(v, [0.1, 0.25], prev, { margin: 0.02 }, `CLS${field != null ? ' (usuarios reales)' : ''}: ${v?.toFixed(3)}`)
         },
       },
       {
         id: 'tbt',
         title: 'Interactividad (TBT ≤ 200 ms)',
         help: 'Total Blocking Time: cuánto tiempo el JavaScript bloquea la página. Se relaciona con INP.',
-        auto: ({ mobile }) => {
+        auto: ({ mobile }, prev) => {
           const v = mobile?.metrics.tbt
-          if (v == null) return null
-          return res(v <= 200 ? 'pass' : v <= 600 ? 'partial' : 'fail', `TBT móvil: ${ms(v)}`)
+          return metricResult(v, [200, 600], prev, { margin: v > 400 ? 80 : 40 }, `TBT móvil: ${ms(v)}`)
         },
       },
       {
         id: 'perf-score-mobile',
         title: 'Puntaje de rendimiento móvil ≥ 90',
         help: 'Puntaje general de Lighthouse simulando un celular de gama media con 4G.',
-        auto: ({ mobile }) => {
+        auto: ({ mobile }, prev) => {
           const v = mobile?.scores.performance
-          if (v == null) return null
-          return res(v >= 90 ? 'pass' : v >= 50 ? 'partial' : 'fail', `Rendimiento móvil: ${v}/100`)
+          return metricResult(v, [90, 50], prev, { higher: true, margin: 4 }, `Rendimiento móvil: ${v}/100`)
         },
       },
       {
         id: 'perf-score-desktop',
         title: 'Puntaje de rendimiento escritorio ≥ 90',
         help: 'Puntaje general de Lighthouse en escritorio.',
-        auto: ({ desktop }) => {
+        auto: ({ desktop }, prev) => {
           const v = desktop?.scores.performance
-          if (v == null) return null
-          return res(v >= 90 ? 'pass' : v >= 50 ? 'partial' : 'fail', `Rendimiento escritorio: ${v}/100`)
+          return metricResult(v, [90, 50], prev, { higher: true, margin: 4 }, `Rendimiento escritorio: ${v}/100`)
         },
       },
       {
@@ -202,6 +257,16 @@ export const CATEGORIES = [
             return res(w === 0 ? 'pass' : 'partial', `${w}/${total} imágenes sin width/height en el HTML (sin datos de PageSpeed)`)
           }
           return null
+        },
+      },
+      {
+        id: 'text-compression',
+        title: 'Compresión de texto (Brotli / gzip)',
+        help: 'El servidor comprime HTML, CSS y JS antes de enviarlos (Brotli reduce ~80 % el HTML). Vercel, Netlify y Cloud Run lo hacen solos; falla en servidores mal configurados.',
+        auto: ({ mobile, desktop }) => {
+          const c = mobile?.audits.compression ?? desktop?.audits.compression
+          if (c == null) return null
+          return c ? res('pass', 'El servidor comprime los archivos de texto') : res('fail', 'Hay archivos de texto sin comprimir')
         },
       },
       {
@@ -414,10 +479,9 @@ export const CATEGORIES = [
         id: 'a11y-score',
         title: 'Puntaje de accesibilidad ≥ 90',
         help: 'Puntaje de Lighthouse que revisa contraste, etiquetas, nombres de botones, etc.',
-        auto: ({ mobile }) => {
+        auto: ({ mobile }, prev) => {
           const v = mobile?.scores.accessibility
-          if (v == null) return null
-          return res(v >= 90 ? 'pass' : v >= 70 ? 'partial' : 'fail', `Accesibilidad: ${v}/100`)
+          return metricResult(v, [90, 70], prev, { higher: true, margin: 2 }, `Accesibilidad: ${v}/100`)
         },
       },
       {
@@ -478,10 +542,9 @@ export const CATEGORIES = [
         id: 'best-practices',
         title: 'Buenas prácticas ≥ 90',
         help: 'Puntaje de Lighthouse: librerías seguras, sin APIs obsoletas, imágenes con proporción correcta…',
-        auto: ({ mobile }) => {
+        auto: ({ mobile }, prev) => {
           const v = mobile?.scores['best-practices']
-          if (v == null) return null
-          return res(v >= 90 ? 'pass' : v >= 70 ? 'partial' : 'fail', `Buenas prácticas: ${v}/100`)
+          return metricResult(v, [90, 70], prev, { higher: true, margin: 2 }, `Buenas prácticas: ${v}/100`)
         },
       },
       {
@@ -510,7 +573,7 @@ export function applyAutoSuggestions(evaluations, autoResults) {
   for (const c of ALL_CRITERIA) {
     let out = null
     try {
-      out = c.auto ? c.auto(r) : null
+      out = c.auto ? c.auto(r, next[c.id]?.autoStatus) : null
     } catch {
       out = null
     }

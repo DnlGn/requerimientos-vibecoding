@@ -295,10 +295,16 @@ Deno.serve(async (req) => {
     return rest;
   };
 
-  const sizeBytes = new TextEncoder().encode(html).length;
+  const htmlBytes = new TextEncoder().encode(html);
+  const sizeBytes = htmlBytes.length;
+  // Huella del HTML: si no cambia entre análisis, el cliente acumula las mediciones de
+  // PageSpeed en vez de reemplazarlas (la nota converge en lugar de saltar).
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", htmlBytes));
+  const contentHash = Array.from(digest.slice(0, 8), (b) => b.toString(16).padStart(2, "0")).join("");
 
   return json({
     analyzedAt: new Date().toISOString(),
+    contentHash,
     requestedUrl: target.toString(),
     finalUrl: finalUrl.toString(),
     status: page.status,
@@ -306,7 +312,6 @@ Deno.serve(async (req) => {
     timing: { ttfbMs: page.ttfb, totalMs: page.ms },
     response: {
       htmlBytes: sizeBytes,
-      contentEncoding: page.headers.get("content-encoding"),
       cacheControl: page.headers.get("cache-control"),
       server: page.headers.get("server"),
       ownJsBytes: jsBytes,

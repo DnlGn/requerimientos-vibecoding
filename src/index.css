@@ -421,7 +421,7 @@ svg.lucide { flex-shrink: 0; }
 .auto-results { display: flex; flex-direction: column; gap: 16px; }
 .devices { display: grid; gap: 24px; grid-template-columns: 1fr; }
 @media (min-width: 1100px) { .devices { grid-template-columns: 1fr 1fr; } }
-.device-title { display: flex; align-items: center; gap: 8px; font-size: 1rem; }
+.device-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 1rem; }
 .score-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
 .score-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
 .metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-bottom: 10px; }
@@ -429,6 +429,18 @@ svg.lucide { flex-shrink: 0; }
 .metric-label { font-size: 0.75rem; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
 .metric-value { font-size: 1.3rem; color: var(--tone); }
 .metric-desc { font-size: 0.75rem; color: var(--text-2); }
+.lcp-box { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; margin-bottom: 10px; border-radius: 12px; background: var(--surface-2); }
+.lcp-box p { margin: 0; word-break: break-word; }
+.lcp-selector { margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: var(--surface); font-size: 0.78rem; }
+.phase-bar { display: flex; height: 10px; border-radius: 99px; overflow: hidden; background: var(--border); }
+.phase { display: block; height: 100%; }
+.phase-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 0.8rem; color: var(--text-2); }
+.phase-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.phase-dot { width: 10px; height: 10px; border-radius: 3px; }
+.phase-timeToFirstByte { background: #64748b; }
+.phase-resourceLoadDelay { background: var(--warn); }
+.phase-resourceLoadDuration { background: var(--good); }
+.phase-elementRenderDelay { background: var(--bad); }
 
 .results-split { display: grid; gap: 16px; grid-template-columns: 1fr; }
 @media (min-width: 768px) { .results-split:has(.shot-card) { grid-template-columns: 260px 1fr; } }

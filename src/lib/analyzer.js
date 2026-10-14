@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { runPageSpeed } from './pagespeed'
+import { poolRuns, runPageSpeed } from './pagespeed'
 
 export const STEPS = ['site', 'mobile', 'desktop']
 
@@ -53,5 +53,16 @@ export async function runFullAnalysis(rawUrl, onProgress, { steps = STEPS, previ
       }
     }),
   )
+
+  // Si el HTML no cambió desde el análisis anterior, las mediciones de PageSpeed se acumulan:
+  // así un sitio sin cambios converge a la misma nota en vez de variar en cada análisis.
+  const prevHash = keep?.site?.contentHash
+  if (prevHash && results.site?.contentHash === prevHash) {
+    for (const strategy of ['mobile', 'desktop']) {
+      if (steps.includes(strategy) && !results.errors[strategy]) {
+        results[strategy] = poolRuns(results[strategy], keep[strategy], strategy)
+      }
+    }
+  }
   return results
 }

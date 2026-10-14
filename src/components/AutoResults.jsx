@@ -12,11 +12,54 @@ const METRICS = [
   ['si', 'Speed Index', 'Velocidad de carga visual'],
 ]
 
+const PHASE_LABELS = [
+  ['timeToFirstByte', 'Servidor'],
+  ['resourceLoadDelay', 'Espera'],
+  ['resourceLoadDuration', 'Descarga'],
+  ['elementRenderDelay', 'Renderizado'],
+]
+
+function LcpBreakdown({ audits }) {
+  const { lcpElement: el, lcpPhases: phases } = audits
+  if (!el && !phases) return null
+  const parts = phases ? PHASE_LABELS.map(([k, l]) => [k, l, phases[k] || 0]).filter(([, , v]) => v > 0) : []
+  const total = parts.reduce((n, [, , v]) => n + v, 0)
+  return (
+    <div className="lcp-box">
+      {el && (
+        <p className="small">
+          <strong>Elemento LCP:</strong> {el.label || el.snippet || el.selector}
+          {el.selector && <code className="lcp-selector">{el.selector.split(' > ').pop()}</code>}
+        </p>
+      )}
+      {total > 0 && (
+        <>
+          <div className="phase-bar" role="img" aria-label={parts.map(([, l, v]) => `${l} ${Math.round((v / total) * 100)}%`).join(', ')}>
+            {parts.map(([k, , v]) => <span key={k} className={`phase phase-${k}`} style={{ width: `${(v / total) * 100}%` }} />)}
+          </div>
+          <ul className="phase-legend">
+            {parts.map(([k, l, v]) => (
+              <li key={k}><span className={`phase-dot phase-${k}`} aria-hidden="true" />{l} {Math.round((v / total) * 100)} %</li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  )
+}
+
 function Device({ data, label, icon: Icon }) {
   if (!data) return null
   return (
     <section className="device-block">
-      <h4 className="device-title"><Icon size={18} aria-hidden="true" /> {label}</h4>
+      <h4 className="device-title">
+        <Icon size={18} aria-hidden="true" /> {label}
+        {data.runs > 1 && (
+          <span className="chip chip-plain" title={`Rendimiento en cada medición: ${data.spread.performance.join(', ')}`}>
+            Mediana de {data.runs} mediciones{data.analyses > 1 ? ` · ${data.analyses} análisis` : ''}
+          </span>
+        )}
+      </h4>
       <div className="score-row">
         {Object.entries(SCORE_LABELS).map(([k, l]) => (
           <div key={k} className="score-cell">
@@ -34,6 +77,22 @@ function Device({ data, label, icon: Icon }) {
           </div>
         ))}
       </div>
+      {data.runs > 1 && (
+        <p className="small muted">
+          Rendimiento por medición: entre {Math.min(...data.spread.performance)} y {Math.max(...data.spread.performance)}. Lighthouse varía entre
+          ejecuciones: se usa la mediana de cada métrica y el puntaje se calcula a partir de ellas.
+          {data.analyses > 1 && ' Como la página no cambió desde el análisis anterior, se acumulan las mediciones.'}
+        </p>
+      )}
+      {data.unstable && (
+        <p className="alert alert-warn small">
+          <AlertTriangle size={16} className="inline-icon" aria-hidden="true" />
+          Medición inestable: {data.spread.lcp.filter((x) => x > 2500).length} de {data.spread.lcp.length} mediciones tuvieron un LCP sobre 2,5 s
+          (entre {formatMetric('lcp', Math.min(...data.spread.lcp))} y {formatMetric('lcp', Math.max(...data.spread.lcp))}).
+          A veces el elemento principal se pinta tarde (CSS que bloquea, fuentes, JavaScript o animaciones de entrada).
+        </p>
+      )}
+      <LcpBreakdown audits={data.audits} />
       {data.field && (
         <p className="small muted">
           Datos reales de usuarios{data.field.scope === 'origin' ? ' (todo el dominio)' : ''}, Chrome UX Report: LCP {formatMetric('lcp', data.field.lcp)} · CLS {formatMetric('cls', data.field.cls)} · INP {formatMetric('inp', data.field.inp)}

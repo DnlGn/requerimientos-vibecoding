@@ -1,4 +1,6 @@
 // Google PageSpeed Insights (Lighthouse 13+) — se llama directo desde el navegador.
+import { performanceScore } from './lighthouseScore'
+
 const ENDPOINT = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
 const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo']
 // Sitios pesados pueden tardar 2–3 minutos; cortamos antes para no dejar la UI colgada.
@@ -73,6 +75,26 @@ function failedChecks(audit) {
   return [...new Set(out)]
 }
 
+// Qué elemento es el LCP y en qué fase se pierde el tiempo. Sin esto, un consejo como
+// "aplicar fetchpriority" no dice a qué elemento (en móvil suele no ser la imagen hero).
+function lcpInfo(a) {
+  const items = a['lcp-breakdown-insight']?.details?.items ?? []
+  const node = items.find((i) => i.type === 'node') ?? a['largest-contentful-paint-element']?.details?.items?.[0]?.items?.[0]?.node
+  const table = items.find((i) => i.type === 'table')?.items ?? []
+  const phases = Object.fromEntries(table.filter((p) => p.subpart).map((p) => [p.subpart, p.duration]))
+  return {
+    element: node ? { label: node.nodeLabel || null, selector: node.selector || null, snippet: node.snippet || null } : null,
+    phases: Object.keys(phases).length ? phases : null,
+  }
+}
+
+function usesCompression(a) {
+  const check = a['document-latency-insight']?.details?.items?.usesCompression
+  if (typeof check?.value === 'boolean') return check.value
+  const legacy = a['uses-text-compression']
+  return typeof legacy?.score === 'number' ? legacy.score >= 0.9 : null
+}
+
 function fieldData(data) {
   const exp = data.loadingExperience?.metrics ? data.loadingExperience : data.originLoadingExperience
   const m = exp?.metrics
@@ -124,6 +146,9 @@ function summarize(data) {
       imageSavingsBytes: imageSavingsBytes(a),
       lcpDiscovery: score(a, 'lcp-discovery-insight'),
       lcpDiscoveryFailed: failedChecks(a['lcp-discovery-insight']),
+      lcpElement: lcpInfo(a).element,
+      lcpPhases: lcpInfo(a).phases,
+      compression: usesCompression(a),
     },
     field: fieldData(data),
     screenshot: a['final-screenshot']?.details?.data ?? null,
@@ -131,7 +156,105 @@ function summarize(data) {
   }
 }
 
-export async function runPageSpeed(url, strategy) {
+// Lighthouse varía entre ejecuciones y en móvil puede ser bimodal (p. ej. LCP 1,6 s o 5,3 s en
+// el mismo sitio sin cambios). Google recomienda la mediana de 5 ejecuciones; escritorio es
+// mucho más estable y basta con 3. Se ejecutan en paralelo.
+const RUNS = { mobile: 5, desktop: 3 }
+
+// PageSpeed devuelve en caché el último resultado de una URL: sin esto, las "N mediciones"
+// serían la misma repetida. Un parámetro único hace que cada una sea independiente.
+function bust(url, i) {
+  try {
+    const u = new URL(url)
+    u.searchParams.set('_vc', `${Date.now().toString(36)}${i}`)
+    return u.toString()
+  } catch {
+    return url
+  }
+}
+
+const median = (values) => {
+  const v = values.filter((x) => typeof x === 'number').sort((a, b) => a - b)
+  if (!v.length) return null
+  const mid = Math.floor(v.length / 2)
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2
+}
+
+// Máximo de mediciones que se acumulan entre análisis de una misma versión de la página.
+const MAX_SAMPLES = 15
+const METRIC_KEYS = ['lcp', 'fcp', 'cls', 'tbt', 'si', 'ttfb']
+
+const toSample = (r) => ({ ...Object.fromEntries(METRIC_KEYS.map((k) => [k, r.metrics[k]])), perf: r.scores.performance })
+
+// Medición inestable (bimodal): hay mediciones con LCP bueno (≤ 2,5 s) y otras claramente
+// peores, y el grupo minoritario es al menos el 20 % (para no reaccionar a un caso aislado).
+function isUnstable(lcps) {
+  const v = lcps.filter((x) => typeof x === 'number')
+  if (v.length < 2) return false
+  const fast = v.filter((x) => x <= 2500).length
+  const minority = Math.min(fast, v.length - fast)
+  const spreadOk = Math.max(...v) - Math.min(...v) > 1000
+  return spreadOk && minority >= Math.max(1, Math.ceil(v.length * 0.2))
+}
+
+// Métricas = mediana de cada una; el puntaje de rendimiento se calcula desde esas medianas
+// (la mediana de los puntajes salta cuando los resultados son bimodales).
+function aggregate(samples, strategy) {
+  const metrics = Object.fromEntries(METRIC_KEYS.map((k) => [k, median(samples.map((s) => s[k]))]))
+  const perf = samples.length > 1 ? performanceScore(metrics, strategy) : null
+  return {
+    metrics,
+    performance: perf ?? median(samples.map((s) => s.perf)),
+    runs: samples.length,
+    spread: { performance: samples.map((s) => s.perf), lcp: samples.map((s) => Math.round(s.lcp ?? 0)) },
+    unstable: isUnstable(samples.map((s) => s.lcp)),
+  }
+}
+
+function combine(runs, strategy) {
+  const samples = runs.map(toSample)
+  const agg = aggregate(samples, strategy)
+  // La ejecución con el LCP más cercano a la mediana aporta las auditorías, el elemento LCP,
+  // la captura y las oportunidades, para que el detalle corresponda al resultado informado.
+  const base = [...runs].sort((a, b) => Math.abs((a.metrics.lcp ?? 0) - agg.metrics.lcp) - Math.abs((b.metrics.lcp ?? 0) - agg.metrics.lcp))[0]
+  const scores = Object.fromEntries(Object.keys(base.scores).map((k) => [k, median(runs.map((r) => r.scores[k]))]))
+  Object.keys(scores).forEach((k) => scores[k] != null && (scores[k] = Math.round(scores[k])))
+  scores.performance = agg.performance
+  const { metrics, ...rest } = agg
+  return {
+    ...base,
+    ...rest,
+    scores,
+    metrics,
+    audits: { ...base.audits, imageSavingsBytes: median(runs.map((r) => r.audits.imageSavingsBytes)) },
+    samples,
+    analyses: 1,
+  }
+}
+
+// Suma las mediciones de un análisis anterior de la MISMA versión de la página (mismo HTML).
+export function poolRuns(current, previous, strategy) {
+  if (!previous?.samples?.length || !current?.samples) return current
+  const samples = [...previous.samples, ...current.samples].slice(-MAX_SAMPLES)
+  const { metrics, performance, ...rest } = aggregate(samples, strategy)
+  return {
+    ...current,
+    ...rest,
+    metrics,
+    scores: { ...current.scores, performance },
+    samples,
+    analyses: (previous.analyses ?? 1) + 1,
+  }
+}
+
+export async function runPageSpeed(url, strategy, runs = RUNS[strategy] ?? 3) {
+  const settled = await Promise.allSettled(Array.from({ length: runs }, (_, i) => runOnce(bust(url, i), strategy)))
+  const ok = settled.filter((s) => s.status === 'fulfilled').map((s) => s.value)
+  if (!ok.length) throw settled[0].reason
+  return combine(ok, strategy)
+}
+
+async function runOnce(url, strategy) {
   const params = new URLSearchParams({ url, strategy, locale: 'es' })
   CATEGORIES.forEach((c) => params.append('category', c))
   const key = import.meta.env.VITE_PSI_API_KEY
