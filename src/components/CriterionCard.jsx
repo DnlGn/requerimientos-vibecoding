@@ -1,7 +1,9 @@
 import { memo, useState } from 'react'
+import { Ban, Check, CircleHelp, Minus, MessageSquarePlus, Sparkles, X } from 'lucide-react'
 import { STATUS } from '../lib/checklist'
 
 const ORDER = ['pass', 'partial', 'fail', 'na']
+const STATUS_ICONS = { pass: Check, partial: Minus, fail: X, na: Ban }
 
 function CriterionCard({ criterion, value = {}, onChange }) {
   const [showHelp, setShowHelp] = useState(false)
@@ -17,10 +19,10 @@ function CriterionCard({ criterion, value = {}, onChange }) {
         <div className="criterion-title">
           <h4>{criterion.title}</h4>
           <button type="button" className="help-toggle" onClick={() => setShowHelp((v) => !v)} aria-expanded={showHelp}>
-            {showHelp ? 'Ocultar' : '¿Qué se evalúa?'}
+            <CircleHelp size={16} aria-hidden="true" /> {showHelp ? 'Ocultar' : '¿Qué se evalúa?'}
           </button>
         </div>
-        {criterion.auto && <span className="chip chip-plain small" title="Este criterio tiene revisión automática">Auto</span>}
+        {criterion.auto && <span className="chip chip-plain small" title="Este criterio tiene revisión automática"><Sparkles size={12} aria-hidden="true" /> Auto</span>}
       </div>
 
       {showHelp && <p className="criterion-help">{criterion.help}</p>}
@@ -36,18 +38,22 @@ function CriterionCard({ criterion, value = {}, onChange }) {
       )}
 
       <div className="status-picker" role="radiogroup" aria-label={`Evaluación: ${criterion.title}`}>
-        {ORDER.map((s) => (
-          <button
-            key={s}
-            type="button"
-            role="radio"
-            aria-checked={status === s}
-            className={`status-btn s-${s} ${status === s ? 'active' : ''}`}
-            onClick={() => setStatus(s)}
-          >
-            {STATUS[s].label}
-          </button>
-        ))}
+        {ORDER.map((s) => {
+          const Icon = STATUS_ICONS[s]
+          return (
+            <button
+              key={s}
+              type="button"
+              role="radio"
+              aria-checked={status === s}
+              className={`status-btn s-${s} ${status === s ? 'active' : ''}`}
+              onClick={() => setStatus(s)}
+            >
+              <Icon size={18} strokeWidth={2.5} aria-hidden="true" />
+              <span>{STATUS[s].label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {showNote ? (
@@ -60,7 +66,9 @@ function CriterionCard({ criterion, value = {}, onChange }) {
           autoFocus={!note}
         />
       ) : (
-        <button type="button" className="link-btn add-note" onClick={() => setShowNote(true)}>+ Agregar comentario</button>
+        <button type="button" className="link-btn add-note" onClick={() => setShowNote(true)}>
+          <MessageSquarePlus size={18} aria-hidden="true" /> Agregar comentario
+        </button>
       )}
     </article>
   )

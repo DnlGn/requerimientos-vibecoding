@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Monitor, Smartphone, X } from 'lucide-react'
 import ScoreRing from './ScoreRing'
 import { formatMetric, metricTone } from '../lib/scoring'
 
@@ -11,11 +12,11 @@ const METRICS = [
   ['si', 'Speed Index', 'Velocidad de carga visual'],
 ]
 
-function Device({ data, label, icon }) {
+function Device({ data, label, icon: Icon }) {
   if (!data) return null
   return (
     <section className="device-block">
-      <h4 className="device-title"><span aria-hidden="true">{icon}</span> {label}</h4>
+      <h4 className="device-title"><Icon size={18} aria-hidden="true" /> {label}</h4>
       <div className="score-row">
         {Object.entries(SCORE_LABELS).map(([k, l]) => (
           <div key={k} className="score-cell">
@@ -48,10 +49,10 @@ function FileRow({ label, file, extra }) {
   return (
     <li className={`file-row ${file.exists ? 'ok' : 'missing'}`}>
       <button type="button" className="file-row-head" onClick={() => file.preview && setOpen((o) => !o)} aria-expanded={open} disabled={!file.preview}>
-        <span className="file-icon" aria-hidden="true">{file.exists ? '✓' : '✕'}</span>
+        <span className="file-icon" aria-hidden="true">{file.exists ? <Check size={14} strokeWidth={3} /> : <X size={14} strokeWidth={3} />}</span>
         <code>{label}</code>
         <span className="small muted file-extra">{file.exists ? extra : file.spaFallback ? 'devuelve el index.html' : 'no encontrado'}</span>
-        {file.preview && <span className="chev" aria-hidden="true">{open ? '▴' : '▾'}</span>}
+        {file.preview && (open ? <ChevronUp size={18} className="chev" aria-hidden="true" /> : <ChevronDown size={18} className="chev" aria-hidden="true" />)}
       </button>
       {open && <pre className="code-block file-preview">{file.preview}</pre>}
     </li>
@@ -77,7 +78,8 @@ export default function AutoResults({ results }) {
 
       {site?.tech.exposedKeys.length > 0 && (
         <div className={`alert ${site.tech.geminiInClient ? 'alert-error' : 'alert-warn'}`}>
-          <strong>⚠ API key de Google visible en el código público:</strong> {site.tech.exposedKeys.join(', ')}.{' '}
+          <AlertTriangle size={18} className="inline-icon" aria-hidden="true" />
+          <strong>API key de Google visible en el código público:</strong> {site.tech.exposedKeys.join(', ')}.{' '}
           {site.tech.geminiInClient
             ? 'El sitio llama a Gemini desde el navegador: cualquiera puede copiar la key y gastar la cuota. Hay que revocarla en Google AI Studio y moverla a un backend.'
             : 'Si es una key de Gemini, hay que revocarla y moverla a un backend. Si es de Firebase, es pública por diseño (debe protegerse con reglas de seguridad).'}
@@ -88,8 +90,8 @@ export default function AutoResults({ results }) {
         <div className="card">
           <h3 className="card-title">Rendimiento y Core Web Vitals</h3>
           <div className="devices">
-            <Device data={mobile} label="Celular" icon="📱" />
-            <Device data={desktop} label="Escritorio" icon="🖥️" />
+            <Device data={mobile} label="Celular" icon={Smartphone} />
+            <Device data={desktop} label="Escritorio" icon={Monitor} />
           </div>
         </div>
       )}

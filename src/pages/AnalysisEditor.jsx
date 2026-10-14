@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, ExternalLink, Lock, MessageCircle, NotebookPen, Pencil, Play, QrCode, RefreshCw, LayoutDashboard, Target, ThumbsUp, Trash2 } from 'lucide-react'
 import { supabase, publicReportUrl } from '../lib/supabase'
 import { CATEGORIES, applyAutoSuggestions } from '../lib/checklist'
 import { computeScore, level } from '../lib/scoring'
@@ -135,14 +136,14 @@ export default function AnalysisEditor() {
     navigate('/', { replace: true })
   }
 
-  if (loadError) return <div className="page"><p className="alert alert-error">{loadError}</p><Link to="/">← Volver</Link></div>
+  if (loadError) return <div className="page"><p className="alert alert-error">{loadError}</p><Link to="/" className="icon-link"><ArrowLeft size={16} aria-hidden="true" /> Volver</Link></div>
   if (!a) return <Spinner />
 
   const lv = level(stats.score)
   const sections = [
-    { id: 'resumen', icon: '📊', title: 'Resumen' },
+    { id: 'resumen', icon: LayoutDashboard, title: 'Resumen' },
     ...CATEGORIES.map((c) => ({ id: c.id, icon: c.icon, title: c.title, st: stats.byCategory[c.id] })),
-    { id: 'cierre', icon: '📝', title: 'Conclusiones' },
+    { id: 'cierre', icon: NotebookPen, title: 'Conclusiones' },
   ]
   const idx = sections.findIndex((s) => s.id === section)
   const category = CATEGORIES.find((c) => c.id === section)
@@ -151,7 +152,7 @@ export default function AnalysisEditor() {
   return (
     <div className="editor">
       <header className="editor-head">
-        <Link to="/" className="back-link" aria-label="Volver a proyectos">←</Link>
+        <Link to="/" className="back-link" aria-label="Volver a proyectos"><ArrowLeft size={22} aria-hidden="true" /></Link>
         <div className="editor-title">
           <h1>{a.project_name}</h1>
           <p className="muted small truncate">
@@ -162,17 +163,21 @@ export default function AnalysisEditor() {
                 {a.mode === 'auto' ? <a href={a.url} target="_blank" rel="noreferrer">{a.url.replace(/^https?:\/\//, '')}</a> : a.url}
               </>
             )}
-            <button className="link-btn" onClick={() => setEditInfo((v) => !v)}>{editInfo ? 'Listo' : 'Editar datos'}</button>
+            <button className="link-btn" onClick={() => setEditInfo((v) => !v)}>
+              {editInfo ? <Check size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />} {editInfo ? 'Listo' : 'Editar datos'}
+            </button>
           </p>
         </div>
         <span className={`save-state ${saveState}`} aria-live="polite">
-          {{ saved: '✓ Guardado', dirty: 'Cambios sin guardar', saving: 'Guardando…', error: '⚠ Error al guardar' }[saveState]}
+          {saveState === 'saved' && <Check size={16} aria-hidden="true" />}
+          {saveState === 'error' && <AlertTriangle size={16} aria-hidden="true" />}
+          {{ saved: 'Guardado', dirty: 'Cambios sin guardar', saving: 'Guardando…', error: 'Error al guardar' }[saveState]}
         </span>
         <div className="editor-actions">
           {a.status === 'published' && (
-            <a className="btn btn-secondary" href={publicReportUrl(a.share_slug)} target="_blank" rel="noreferrer">Ver informe</a>
+            <a className="btn btn-secondary" href={publicReportUrl(a.share_slug)} target="_blank" rel="noreferrer"><ExternalLink size={18} aria-hidden="true" /> Ver informe</a>
           )}
-          <button className="btn btn-primary" onClick={() => setShowQr(true)}>{a.status === 'published' ? 'QR / Compartir' : 'Publicar informe'}</button>
+          <button className="btn btn-primary" onClick={() => setShowQr(true)}><QrCode size={18} aria-hidden="true" /> {a.status === 'published' ? 'QR / Compartir' : 'Publicar informe'}</button>
         </div>
       </header>
 
@@ -205,7 +210,7 @@ export default function AnalysisEditor() {
             {sections.map((s) => (
               <li key={s.id}>
                 <button className={`section-link ${section === s.id ? 'active' : ''}`} onClick={() => go(s.id)} aria-current={section === s.id ? 'page' : undefined}>
-                  <span className="section-icon" aria-hidden="true">{s.icon}</span>
+                  <s.icon size={20} className="section-icon" aria-hidden="true" />
                   <span className="section-name">{s.title}</span>
                   {s.st && (
                     <span className={`section-badge ${s.st.pending === 0 ? 'done' : ''}`}>
@@ -232,6 +237,7 @@ export default function AnalysisEditor() {
                     </p>
                   </div>
                   <button className="btn btn-primary btn-lg" onClick={runAnalysis} disabled={!!progress}>
+                    {progress ? <RefreshCw size={20} className="spin" aria-hidden="true" /> : a.auto_results ? <RefreshCw size={20} aria-hidden="true" /> : <Play size={20} aria-hidden="true" />}
                     {progress ? 'Analizando…' : a.auto_results ? 'Volver a analizar' : 'Analizar ahora'}
                   </button>
                   {progress && (
@@ -259,7 +265,7 @@ export default function AnalysisEditor() {
                   const st = stats.byCategory[c.id]
                   return (
                     <button key={c.id} className="card cat-tile" onClick={() => go(c.id)}>
-                      <span className="cat-icon" aria-hidden="true">{c.icon}</span>
+                      <c.icon size={26} className="cat-icon" aria-hidden="true" />
                       <span className="cat-name">{c.title}</span>
                       <span className="small muted">{st.evaluated}/{st.total} · peso {c.weight}%</span>
                       <span className="bar"><span style={{ width: `${st.score ?? 0}%` }} className={`bar-fill tone-${st.score == null ? 'muted' : st.score >= 80 ? 'great' : st.score >= 50 ? 'warn' : 'bad'}`} /></span>
@@ -275,7 +281,7 @@ export default function AnalysisEditor() {
           {category && (
             <div className="stack">
               <div className="category-head">
-                <h2><span aria-hidden="true">{category.icon}</span> {category.title}</h2>
+                <h2 className="icon-heading"><category.icon size={26} aria-hidden="true" /> {category.title}</h2>
                 <p className="muted">{category.summary}</p>
               </div>
               {category.id === 'responsive' && a.mode === 'auto' && <DevicePreview url={a.url} />}
@@ -288,23 +294,23 @@ export default function AnalysisEditor() {
           {section === 'cierre' && (
             <div className="stack">
               <div className="category-head">
-                <h2>📝 Conclusiones</h2>
+                <h2 className="icon-heading"><NotebookPen size={26} aria-hidden="true" /> Conclusiones</h2>
                 <p className="muted">Lo que escribas aquí aparece en el informe, excepto las notas privadas.</p>
               </div>
               <label className="field card">
-                <span>💪 Fortalezas</span>
+                <span className="icon-label"><ThumbsUp size={18} aria-hidden="true" /> Fortalezas</span>
                 <textarea className="input" rows={4} value={a.strengths || ''} onChange={(e) => update({ strengths: e.target.value })} placeholder="¿Qué hizo especialmente bien el alumno?" />
               </label>
               <label className="field card">
-                <span>🎯 Próximos pasos / mejoras prioritarias</span>
+                <span className="icon-label"><Target size={18} aria-hidden="true" /> Próximos pasos / mejoras prioritarias</span>
                 <textarea className="input" rows={4} value={a.improvements || ''} onChange={(e) => update({ improvements: e.target.value })} placeholder="Las 3 mejoras con más impacto, en orden." />
               </label>
               <label className="field card">
-                <span>💬 Comentario general</span>
+                <span className="icon-label"><MessageCircle size={18} aria-hidden="true" /> Comentario general</span>
                 <textarea className="input" rows={4} value={a.general_notes || ''} onChange={(e) => update({ general_notes: e.target.value })} />
               </label>
               <label className="field card private">
-                <span>🔒 Notas privadas <em className="muted small">(solo tú las ves)</em></span>
+                <span className="icon-label"><Lock size={18} aria-hidden="true" /> Notas privadas <em className="muted small">(solo tú las ves)</em></span>
                 <textarea className="input" rows={3} value={a.private_notes || ''} onChange={(e) => update({ private_notes: e.target.value })} placeholder="Observaciones de la presentación, recordatorios…" />
               </label>
               <div className="card closing-card">
@@ -313,15 +319,15 @@ export default function AnalysisEditor() {
                   <strong className={`tone-text-${lv.tone}`}>{lv.label}</strong>
                   <p className="muted small">{stats.total - stats.evaluated > 0 ? `Quedan ${stats.total - stats.evaluated} criterios sin evaluar.` : 'Todos los criterios están evaluados.'}</p>
                 </div>
-                <button className="btn btn-primary btn-lg" onClick={() => setShowQr(true)}>{a.status === 'published' ? 'Ver QR' : 'Publicar informe'}</button>
+                <button className="btn btn-primary btn-lg" onClick={() => setShowQr(true)}><QrCode size={20} aria-hidden="true" /> {a.status === 'published' ? 'Ver QR' : 'Publicar informe'}</button>
               </div>
-              <button className="btn btn-danger-ghost" onClick={remove}>Eliminar análisis</button>
+              <button className="btn btn-danger-ghost" onClick={remove}><Trash2 size={18} aria-hidden="true" /> Eliminar análisis</button>
             </div>
           )}
 
           <div className="pager">
-            {idx > 0 ? <button className="btn btn-secondary btn-lg" onClick={() => go(sections[idx - 1].id)}>← {sections[idx - 1].title}</button> : <span />}
-            {idx < sections.length - 1 && <button className="btn btn-primary btn-lg" onClick={() => go(sections[idx + 1].id)}>{sections[idx + 1].title} →</button>}
+            {idx > 0 ? <button className="btn btn-secondary btn-lg" onClick={() => go(sections[idx - 1].id)}><ArrowLeft size={20} aria-hidden="true" /> {sections[idx - 1].title}</button> : <span />}
+            {idx < sections.length - 1 && <button className="btn btn-primary btn-lg" onClick={() => go(sections[idx + 1].id)}>{sections[idx + 1].title} <ArrowRight size={20} aria-hidden="true" /></button>}
           </div>
         </section>
       </div>

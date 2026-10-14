@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
+import { ScanSearch } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -28,7 +29,7 @@ export default function Login() {
   return (
     <div className="center-page login-page">
       <div className="login-hero">
-        <span className="brand-mark lg" aria-hidden="true">✓</span>
+        <span className="brand-mark lg" aria-hidden="true"><ScanSearch size={34} strokeWidth={2.25} /></span>
         <h1>VibeCheck</h1>
         <p>Analiza, anota y entrega informes de proyectos creados con Google AI Studio.</p>
       </div>

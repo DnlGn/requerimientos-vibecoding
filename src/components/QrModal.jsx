@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
+import { Check, Copy, Download, ExternalLink, QrCode, Share2, X } from 'lucide-react'
 import { publicReportUrl } from '../lib/supabase'
 
 export default function QrModal({ analysis, onClose, onTogglePublish, busy }) {
@@ -40,13 +41,15 @@ export default function QrModal({ analysis, onClose, onTogglePublish, busy }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal card" role="dialog" aria-modal="true" aria-labelledby="qr-title" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose} aria-label="Cerrar">✕</button>
+        <button className="modal-close" onClick={onClose} aria-label="Cerrar"><X size={20} aria-hidden="true" /></button>
         <h2 id="qr-title">Informe de {analysis.project_name}</h2>
 
         {!published ? (
           <>
             <p className="muted">El informe aún es un borrador. Al publicarlo se genera un link y un QR que cualquiera puede abrir (sin tus notas privadas).</p>
-            <button className="btn btn-primary btn-lg full" onClick={onTogglePublish} disabled={busy}>{busy ? 'Publicando…' : 'Publicar y generar QR'}</button>
+            <button className="btn btn-primary btn-lg full" onClick={onTogglePublish} disabled={busy}>
+              <QrCode size={20} aria-hidden="true" /> {busy ? 'Publicando…' : 'Publicar y generar QR'}
+            </button>
           </>
         ) : (
           <>
@@ -55,10 +58,14 @@ export default function QrModal({ analysis, onClose, onTogglePublish, busy }) {
             </div>
             <p className="qr-url"><a href={url} target="_blank" rel="noreferrer">{url.replace(/^https?:\/\//, '')}</a></p>
             <div className="qr-actions">
-              <button className="btn btn-primary" onClick={download}>Descargar QR</button>
-              <button className="btn btn-secondary" onClick={copy}>{copied ? '¡Copiado!' : 'Copiar link'}</button>
-              {typeof navigator.share === 'function' && <button className="btn btn-secondary" onClick={share}>Compartir</button>}
-              <a className="btn btn-secondary" href={url} target="_blank" rel="noreferrer">Abrir informe</a>
+              <button className="btn btn-primary" onClick={download}><Download size={18} aria-hidden="true" /> Descargar QR</button>
+              <button className="btn btn-secondary" onClick={copy}>
+                {copied ? <Check size={18} aria-hidden="true" /> : <Copy size={18} aria-hidden="true" />} {copied ? '¡Copiado!' : 'Copiar link'}
+              </button>
+              {typeof navigator.share === 'function' && (
+                <button className="btn btn-secondary" onClick={share}><Share2 size={18} aria-hidden="true" /> Compartir</button>
+              )}
+              <a className="btn btn-secondary" href={url} target="_blank" rel="noreferrer"><ExternalLink size={18} aria-hidden="true" /> Abrir informe</a>
             </div>
             <button className="btn btn-ghost btn-sm full" onClick={onTogglePublish} disabled={busy}>Despublicar (el link dejará de funcionar)</button>
           </>

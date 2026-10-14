@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Link2, PenLine } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { normalizeUrl } from '../lib/analyzer'
 
@@ -41,13 +42,13 @@ export default function NewAnalysis() {
           <legend>¿Cómo quieres analizar?</legend>
           <label className={`mode-option ${mode === 'auto' ? 'selected' : ''}`}>
             <input type="radio" name="mode" value="auto" checked={mode === 'auto'} onChange={() => setMode('auto')} />
-            <span className="mode-icon" aria-hidden="true">🔗</span>
+            <Link2 size={28} className="mode-icon" aria-hidden="true" />
             <strong>Con link</strong>
             <span className="muted small">Análisis automático de rendimiento, metadata y archivos, más tus anotaciones.</span>
           </label>
           <label className={`mode-option ${mode === 'manual' ? 'selected' : ''}`}>
             <input type="radio" name="mode" value="manual" checked={mode === 'manual'} onChange={() => setMode('manual')} />
-            <span className="mode-icon" aria-hidden="true">✍️</span>
+            <PenLine size={28} className="mode-icon" aria-hidden="true" />
             <strong>Sin link</strong>
             <span className="muted small">Evaluación 100% manual con la rúbrica (proyecto local, presentación, etc.).</span>
           </label>

@@ -2,6 +2,8 @@
 // Cada criterio puede tener `auto(r)` que recibe auto_results y sugiere un estado.
 // r = { site, mobile, desktop }  (cualquiera puede ser null)
 
+import { Accessibility, Bot, Gauge, Palette, Search, ShieldCheck, Smartphone } from 'lucide-react'
+
 export const STATUS = {
   pass: { label: 'Cumple', short: 'Sí', value: 1 },
   partial: { label: 'Parcial', short: '½', value: 0.5 },
@@ -17,7 +19,7 @@ export const CATEGORIES = [
   {
     id: 'responsive',
     title: 'Responsive',
-    icon: '📱',
+    icon: Smartphone,
     weight: 20,
     summary: 'La página se adapta y se ve bien en celular, tablet y computador.',
     criteria: [
@@ -64,7 +66,7 @@ export const CATEGORIES = [
   {
     id: 'uxui',
     title: 'UX / UI',
-    icon: '🎨',
+    icon: Palette,
     weight: 20,
     summary: 'Diseño visual coherente y una experiencia clara para el usuario.',
     criteria: [
@@ -83,7 +85,7 @@ export const CATEGORIES = [
   {
     id: 'performance',
     title: 'Rendimiento',
-    icon: '⚡',
+    icon: Gauge,
     weight: 20,
     summary: 'Carga rápida y estable en distintos dispositivos (Core Web Vitals).',
     criteria: [
@@ -179,7 +181,7 @@ export const CATEGORIES = [
   {
     id: 'seo',
     title: 'SEO y metadata',
-    icon: '🔎',
+    icon: Search,
     weight: 15,
     summary: 'Buscadores y redes sociales entienden y muestran bien la página.',
     criteria: [
@@ -302,7 +304,7 @@ export const CATEGORIES = [
   {
     id: 'geo',
     title: 'Posicionamiento en IA',
-    icon: '🤖',
+    icon: Bot,
     weight: 10,
     summary: 'Preparada para que ChatGPT, Gemini, Claude y Perplexity la entiendan y la citen (GEO).',
     criteria: [
@@ -359,7 +361,7 @@ export const CATEGORIES = [
   {
     id: 'a11y',
     title: 'Accesibilidad',
-    icon: '♿',
+    icon: Accessibility,
     weight: 10,
     summary: 'Cualquier persona puede usar la página, incluyendo quienes usan lector de pantalla o teclado.',
     criteria: [
@@ -396,7 +398,7 @@ export const CATEGORIES = [
   {
     id: 'quality',
     title: 'Calidad y seguridad',
-    icon: '🛡️',
+    icon: ShieldCheck,
     weight: 5,
     summary: 'Detalles que distinguen un proyecto profesional de uno de prueba.',
     criteria: [

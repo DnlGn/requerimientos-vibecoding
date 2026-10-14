@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { FlaskConical, Link2, PenLine, Plus, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { level } from '../lib/scoring'
 import ScoreRing from '../components/ScoreRing'
@@ -56,12 +57,15 @@ export default function Dashboard() {
             {stats.total} análisis · {stats.published} publicados{stats.avg != null && ` · promedio ${stats.avg}/100`}
           </p>
         </div>
-        <Link to="/nuevo" className="btn btn-primary btn-lg">+ Nuevo análisis</Link>
+        <Link to="/nuevo" className="btn btn-primary btn-lg"><Plus size={20} aria-hidden="true" /> Nuevo análisis</Link>
       </div>
 
       {items.length > 0 && (
         <div className="filters">
-          <input type="search" className="input" placeholder="Buscar proyecto, alumno o URL…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="search-box">
+            <Search size={18} className="search-icon" aria-hidden="true" />
+            <input type="search" className="input" placeholder="Buscar proyecto, alumno o URL…" aria-label="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
           {courses.length > 0 && (
             <select className="input" value={course} onChange={(e) => setCourse(e.target.value)}>
               <option value="">Todos los cursos</option>
@@ -78,7 +82,7 @@ export default function Dashboard() {
 
       {items.length === 0 ? (
         <div className="empty card">
-          <div className="empty-icon" aria-hidden="true">🧪</div>
+          <FlaskConical size={48} strokeWidth={1.5} className="empty-icon" aria-hidden="true" />
           <h2>Aún no hay análisis</h2>
           <p className="muted">Crea el primero con el link del proyecto, o hazlo solo con anotaciones manuales.</p>
           <Link to="/nuevo" className="btn btn-primary btn-lg">Comenzar</Link>
@@ -97,7 +101,10 @@ export default function Dashboard() {
                   <div className="project-card-body">
                     <h3>{i.project_name}</h3>
                     <p className="muted small">{[i.student_name, i.course].filter(Boolean).join(' · ') || 'Sin alumno asignado'}</p>
-                    <p className="small truncate">{i.url ? i.url.replace(/^https?:\/\//, '') : 'Análisis manual (sin link)'}</p>
+                    <p className="small icon-line">
+                      {i.url ? <Link2 size={14} aria-hidden="true" /> : <PenLine size={14} aria-hidden="true" />}
+                      <span className="truncate">{i.url ? i.url.replace(/^https?:\/\//, '') : 'Análisis manual (sin link)'}</span>
+                    </p>
                     <div className="chips">
                       <span className={`chip ${i.status === 'published' ? 'chip-ok' : ''}`}>{i.status === 'published' ? 'Publicado' : 'Borrador'}</span>
                       <span className={`chip tone-${lv.tone}`}>{lv.label}</span>

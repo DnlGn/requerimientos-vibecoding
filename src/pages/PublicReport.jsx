@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
+import { ExternalLink, Lock, MessageCircle, Printer, Target, ThumbsUp } from 'lucide-react'
 import { supabase, publicReportUrl } from '../lib/supabase'
 import { CATEGORIES, STATUS } from '../lib/checklist'
 import { computeScore, level } from '../lib/scoring'
@@ -37,7 +38,7 @@ export default function PublicReport() {
     return (
       <div className="center-page">
         <div className="card narrow center">
-          <div className="empty-icon" aria-hidden="true">🔒</div>
+          <Lock size={48} strokeWidth={1.5} className="empty-icon" aria-hidden="true" />
           <h1>Informe no disponible</h1>
           <p className="muted">Este informe no existe o todavía no ha sido publicado.</p>
         </div>
@@ -61,7 +62,7 @@ export default function PublicReport() {
               {r.url && r.mode === 'auto' && (
                 <>
                   <br />
-                  <a href={r.url} target="_blank" rel="noreferrer">{r.url.replace(/^https?:\/\//, '')} ↗</a>
+                  <a href={r.url} target="_blank" rel="noreferrer" className="icon-link">{r.url.replace(/^https?:\/\//, '')} <ExternalLink size={16} aria-hidden="true" /></a>
                 </>
               )}
             </p>
@@ -83,7 +84,7 @@ export default function PublicReport() {
               const tone = st.score == null ? 'muted' : st.score >= 80 ? 'great' : st.score >= 50 ? 'warn' : 'bad'
               return (
                 <a key={c.id} href={`#cat-${c.id}`} className="cat-bar">
-                  <span className="cat-bar-label"><span aria-hidden="true">{c.icon}</span> {c.title}</span>
+                  <span className="cat-bar-label"><c.icon size={18} aria-hidden="true" /> {c.title}</span>
                   <span className="bar"><span className={`bar-fill tone-${tone}`} style={{ width: `${st.score ?? 0}%` }} /></span>
                   <strong className="cat-bar-value">{st.score ?? '—'}</strong>
                 </a>
@@ -94,9 +95,9 @@ export default function PublicReport() {
 
         {(r.strengths || r.improvements || r.general_notes) && (
           <section className="report-section feedback-grid">
-            {r.strengths && <div className="card feedback good"><h3>💪 Fortalezas</h3><Paragraphs text={r.strengths} /></div>}
-            {r.improvements && <div className="card feedback next"><h3>🎯 Próximos pasos</h3><Paragraphs text={r.improvements} /></div>}
-            {r.general_notes && <div className="card feedback"><h3>💬 Comentario general</h3><Paragraphs text={r.general_notes} /></div>}
+            {r.strengths && <div className="card feedback good"><h3 className="icon-heading"><ThumbsUp size={20} aria-hidden="true" /> Fortalezas</h3><Paragraphs text={r.strengths} /></div>}
+            {r.improvements && <div className="card feedback next"><h3 className="icon-heading"><Target size={20} aria-hidden="true" /> Próximos pasos</h3><Paragraphs text={r.improvements} /></div>}
+            {r.general_notes && <div className="card feedback"><h3 className="icon-heading"><MessageCircle size={20} aria-hidden="true" /> Comentario general</h3><Paragraphs text={r.general_notes} /></div>}
           </section>
         )}
 
@@ -112,7 +113,7 @@ export default function PublicReport() {
           {CATEGORIES.map((c) => (
             <div key={c.id} id={`cat-${c.id}`} className="card report-cat">
               <div className="report-cat-head">
-                <h3><span aria-hidden="true">{c.icon}</span> {c.title}</h3>
+                <h3 className="icon-heading"><c.icon size={22} aria-hidden="true" /> {c.title}</h3>
                 <span className="chip">{stats.byCategory[c.id].score ?? '—'}/100</span>
               </div>
               <p className="muted small">{c.summary}</p>
@@ -141,7 +142,7 @@ export default function PublicReport() {
           <div>
             <p className="small muted">Escanea para abrir este informe</p>
             <p className="small">{url.replace(/^https?:\/\//, '')}</p>
-            <button className="btn btn-secondary no-print" onClick={() => window.print()}>Imprimir / Guardar PDF</button>
+            <button className="btn btn-secondary no-print" onClick={() => window.print()}><Printer size={18} aria-hidden="true" /> Imprimir / Guardar PDF</button>
           </div>
         </footer>
       </main>

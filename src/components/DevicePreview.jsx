@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { ExternalLink, Monitor, Smartphone, Tablet } from 'lucide-react'
 
 const DEVICES = [
-  { id: 'mobile', label: 'Celular', w: 390, h: 844 },
-  { id: 'tablet', label: 'Tablet', w: 820, h: 1180 },
-  { id: 'desktop', label: 'Escritorio', w: 1440, h: 900 },
+  { id: 'mobile', label: 'Celular', w: 390, h: 844, icon: Smartphone },
+  { id: 'tablet', label: 'Tablet', w: 820, h: 1180, icon: Tablet },
+  { id: 'desktop', label: 'Escritorio', w: 1440, h: 900, icon: Monitor },
 ]
 
 // Muestra la web dentro de un iframe al ancho real del dispositivo, escalado para caber.
@@ -35,7 +36,7 @@ export default function DevicePreview({ url }) {
           <div className="segmented">
             {DEVICES.map((d) => (
               <button key={d.id} className={d.id === device.id ? 'active' : ''} onClick={() => setDevice(d)}>
-                {d.label} <span className="muted small">{d.w}px</span>
+                <d.icon size={16} aria-hidden="true" /> {d.label} <span className="muted small">{d.w}px</span>
               </button>
             ))}
           </div>
@@ -50,7 +51,8 @@ export default function DevicePreview({ url }) {
             />
           </div>
           <p className="small muted">
-            ¿No carga? Algunos hosts bloquean la vista embebida. <a href={url} target="_blank" rel="noreferrer">Abrir en pestaña nueva ↗</a>
+            ¿No carga? Algunos hosts bloquean la vista embebida.{' '}
+            <a href={url} target="_blank" rel="noreferrer" className="icon-link">Abrir en pestaña nueva <ExternalLink size={14} aria-hidden="true" /></a>
           </p>
         </>
       )}
