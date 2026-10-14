@@ -123,9 +123,23 @@ function maskKey(k: string) {
   return k.slice(0, 6) + "…" + k.slice(-4);
 }
 
+// verify_jwt también deja pasar la anon key (que es pública), así que además
+// confirmamos que el token pertenece a un usuario con sesión iniciada.
+async function isSignedIn(req: Request) {
+  const auth = req.headers.get("Authorization") ?? "";
+  const url = Deno.env.get("SUPABASE_URL");
+  const anon = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!auth.startsWith("Bearer ") || !url || !anon) return false;
+  const res = await fetch(`${url}/auth/v1/user`, { headers: { Authorization: auth, apikey: anon } });
+  if (!res.ok) return false;
+  const user = await res.json().catch(() => null);
+  return Boolean(user?.id);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
+  if (!(await isSignedIn(req))) return json({ error: "Debes iniciar sesión para analizar sitios" }, 401);
 
   let input: { url?: string };
   try {

@@ -31,6 +31,7 @@
         "npm:@types/react-dom@^19.2.7",
         "npm:@types/react@^19.2.18",
         "npm:@vitejs/plugin-react@^6.1.1",
+        "npm:lucide-react@^1.56.0",
         "npm:oxlint@^1.81.0",
         "npm:qrcode.react@^4.2.0",
         "npm:react-dom@^19.2.8",

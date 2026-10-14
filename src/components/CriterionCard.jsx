@@ -1,5 +1,5 @@
 import { memo, useState } from 'react'
-import { Ban, Check, CircleHelp, Minus, MessageSquarePlus, Sparkles, X } from 'lucide-react'
+import { Ban, Check, CircleHelp, Minus, MessageSquarePlus, Sparkles, Trash2, X } from 'lucide-react'
 import { STATUS } from '../lib/checklist'
 
 const ORDER = ['pass', 'partial', 'fail', 'na']
@@ -12,6 +12,10 @@ function CriterionCard({ criterion, value = {}, onChange }) {
 
   const setStatus = (s) => onChange(criterion.id, { status: status === s ? null : s, source: 'manual' })
   const useAuto = () => onChange(criterion.id, { status: autoStatus, source: 'auto' })
+  const removeNote = () => {
+    setShowNote(false)
+    if (note) onChange(criterion.id, { note: null })
+  }
 
   return (
     <article className={`criterion status-${status || 'none'}`}>
@@ -57,14 +61,20 @@ function CriterionCard({ criterion, value = {}, onChange }) {
       </div>
 
       {showNote ? (
-        <textarea
-          className="input note-input"
-          rows={2}
-          placeholder="Comentario para el alumno (aparece en el informe)…"
-          value={note || ''}
-          onChange={(e) => onChange(criterion.id, { note: e.target.value })}
-          autoFocus={!note}
-        />
+        <div className="note-row">
+          <textarea
+            className="input note-input"
+            rows={2}
+            placeholder="Comentario para el alumno (aparece en el informe)…"
+            value={note || ''}
+            onChange={(e) => onChange(criterion.id, { note: e.target.value })}
+            onBlur={(e) => !e.target.value.trim() && removeNote()}
+            autoFocus={!note}
+          />
+          <button type="button" className="btn btn-ghost note-delete" onClick={removeNote} aria-label="Eliminar comentario" title="Eliminar comentario">
+            <Trash2 size={18} aria-hidden="true" />
+          </button>
+        </div>
       ) : (
         <button type="button" className="link-btn add-note" onClick={() => setShowNote(true)}>
           <MessageSquarePlus size={18} aria-hidden="true" /> Agregar comentario

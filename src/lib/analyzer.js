@@ -18,7 +18,7 @@ async function runSite(url) {
     body = await error.context?.json?.()
   } catch { /* sin body */ }
   if (status === 404 && body?.code === 'NOT_FOUND') throw new Error('La Edge Function "analyze-site" no está desplegada en Supabase.')
-  if (status === 401) throw new Error('Sesión expirada: vuelve a iniciar sesión.')
+  if (status === 401) throw new Error(body?.error || 'Sesión expirada: vuelve a iniciar sesión.')
   if (error.name === 'FunctionsFetchError') throw new Error('No se pudo contactar la Edge Function (¿sin conexión?).')
   throw new Error(body?.error || body?.message || error.message)
 }

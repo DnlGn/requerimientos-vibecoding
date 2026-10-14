@@ -403,6 +403,10 @@ svg.lucide { flex-shrink: 0; }
 .status-btn.s-fail.active { background: var(--bad); border-color: var(--bad); color: #fff; }
 .status-btn.s-na.active { background: var(--muted); border-color: var(--muted); color: #fff; }
 .add-note { align-self: flex-start; margin: 0; padding: 8px 0; }
+.note-row { display: flex; gap: 8px; align-items: flex-start; }
+.note-row .note-input { flex: 1; }
+.note-delete { width: var(--tap); padding: 0; flex-shrink: 0; }
+.note-delete:hover { color: var(--bad); background: var(--bad-soft); }
 
 .field.card textarea { margin-top: 4px; }
 .field.card.private { border-style: dashed; }
