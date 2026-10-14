@@ -14,6 +14,25 @@ export const STATUS = {
 const ms = (v) => (v == null ? '—' : v >= 1000 ? `${(v / 1000).toFixed(2)} s` : `${Math.round(v)} ms`)
 const res = (status, detail) => ({ status, detail })
 const range = (len, min, max) => len >= min && len <= max
+const kib = (b) => `${Math.round(b / 1024)} KiB`
+
+// LCP + explicación cuando la imagen principal se descubre tarde o se carga en diferido.
+function lcpResult(data, label) {
+  const v = data?.metrics.lcp
+  if (v == null) return null
+  const status = v <= 2500 ? 'pass' : v <= 4000 ? 'partial' : 'fail'
+  let detail = `LCP ${label}: ${ms(v)}`
+  if (status !== 'pass') {
+    const failed = data.audits.lcpDiscoveryFailed || []
+    if (failed.length) detail += ` · Elemento principal: ${failed.join(', ')}`
+    else if (data.audits.lcpDiscovery != null && data.audits.lcpDiscovery < 0.9) {
+      detail += ' · La imagen principal se descubre tarde (revisar loading="lazy" y fetchpriority="high")'
+    }
+    const fcp = data.metrics.fcp
+    if (fcp != null && v - fcp > 2000) detail += ` · El primer contenido aparece en ${ms(fcp)}, pero el principal tarda ${ms(v - fcp)} más`
+  }
+  return res(status, detail)
+}
 
 export const CATEGORIES = [
   {
@@ -92,21 +111,13 @@ export const CATEGORIES = [
         id: 'lcp-mobile',
         title: 'LCP en celular ≤ 2,5 s',
         help: 'Largest Contentful Paint: cuánto tarda en aparecer el elemento principal. Bueno ≤ 2,5 s · Mejorable ≤ 4 s.',
-        auto: ({ mobile }) => {
-          const v = mobile?.metrics.lcp
-          if (v == null) return null
-          return res(v <= 2500 ? 'pass' : v <= 4000 ? 'partial' : 'fail', `LCP móvil: ${ms(v)}`)
-        },
+        auto: ({ mobile }) => lcpResult(mobile, 'móvil'),
       },
       {
         id: 'lcp-desktop',
         title: 'LCP en escritorio ≤ 2,5 s',
         help: 'Lo mismo, medido en un computador con buena conexión.',
-        auto: ({ desktop }) => {
-          const v = desktop?.metrics.lcp
-          if (v == null) return null
-          return res(v <= 2500 ? 'pass' : v <= 4000 ? 'partial' : 'fail', `LCP escritorio: ${ms(v)}`)
-        },
+        auto: ({ desktop }) => lcpResult(desktop, 'escritorio'),
       },
       {
         id: 'cls',
@@ -154,15 +165,37 @@ export const CATEGORIES = [
         help: 'Formatos modernos (WebP/AVIF), comprimidas, con width/height y carga diferida (loading="lazy") fuera de pantalla.',
         // Se usa Lighthouse (DOM ya renderizado). El HTML inicial de una SPA no tiene
         // imágenes, así que contarlas ahí daría un "Cumple" falso.
-        auto: ({ mobile, site }) => {
-          if (mobile) {
-            const { imageDelivery: d, unsizedImages: u } = mobile.audits
-            if (d == null && u == null) return res('pass', 'Lighthouse no encontró imágenes que optimizar')
+        // Se juzga por los KiB que se podrían ahorrar (peor caso entre móvil y escritorio):
+        // los insights de Lighthouse 13 dan score 0 incluso por ahorros pequeños.
+        auto: ({ mobile, desktop, site }) => {
+          if (mobile || desktop) {
+            const runs = [['móvil', mobile], ['escritorio', desktop]].filter(([, d]) => d)
+            const unsized = runs.some(([, d]) => d.audits.unsizedImages != null && d.audits.unsizedImages < 1)
+            const withSavings = runs.filter(([, d]) => d.audits.imageSavingsBytes != null)
             const parts = []
-            if (d != null) parts.push(d >= 0.9 ? 'Formato y peso OK' : 'Hay imágenes pesadas o en formatos antiguos (usar WebP/AVIF)')
-            if (u != null) parts.push(u === 1 ? 'todas con width/height' : 'hay imágenes sin width/height (causan saltos)')
-            const bad = [d, u].filter((v) => v != null && v < 0.9).length
-            return res(bad === 0 ? 'pass' : bad === 2 || (d != null && d < 0.5) ? 'fail' : 'partial', parts.join(' · '))
+            let rank = 0 // 0 cumple · 1 parcial · 2 no cumple
+            if (withSavings.length) {
+              const max = Math.max(...withSavings.map(([, d]) => d.audits.imageSavingsBytes))
+              rank = max <= 150 * 1024 ? 0 : max <= 600 * 1024 ? 1 : 2
+              if (max === 0) parts.push('Formato y peso OK')
+              else {
+                const list = withSavings.map(([l, d]) => `${kib(d.audits.imageSavingsBytes)} en ${l}`).join(', ')
+                parts.push(`Ahorro posible: ${list}${rank ? ' (usar WebP/AVIF y tamaños adecuados por pantalla)' : ' (bajo)'}`)
+              }
+            } else {
+              // Resultados guardados antes de medir KiB: se usa el score.
+              const d = (mobile || desktop).audits.imageDelivery
+              if (d == null) parts.push('Lighthouse no encontró imágenes que optimizar')
+              else {
+                rank = d >= 0.9 ? 0 : 1
+                parts.push(rank ? 'Hay imágenes que se pueden optimizar' : 'Formato y peso OK')
+              }
+            }
+            if (unsized) {
+              rank = Math.min(2, rank + 1)
+              parts.push('hay imágenes sin width/height (causan saltos)')
+            }
+            return res(['pass', 'partial', 'fail'][rank], parts.join(' · '))
           }
           if (site && !site.content.isSpaShell && site.content.images.total) {
             const { total, withoutDimensions: w } = site.content.images
@@ -304,7 +337,11 @@ export const CATEGORIES = [
         auto: ({ site }) => {
           if (!site) return null
           const s = site.files.sitemap
-          return s.exists ? res('pass', `${s.urls} URL(s)`) : res('fail', s.spaFallback ? 'La ruta devuelve el index.html (no existe el archivo)' : 'No existe /sitemap.xml')
+          if (s.exists) {
+            const path = s.url.replace(/^https?:\/\/[^/]+/, '')
+            return res('pass', `${path} · ${s.isIndex ? `índice con ${s.urls} sitemap(s)` : `${s.urls} URL(s)`}`)
+          }
+          return res('fail', s.spaFallback ? 'La ruta devuelve el index.html (no existe el archivo)' : 'No se encontró sitemap (ni en robots.txt ni en /sitemap.xml)')
         },
       },
     ],

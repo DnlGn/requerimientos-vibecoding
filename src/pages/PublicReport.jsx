@@ -9,7 +9,8 @@ import AutoResults from '../components/AutoResults'
 import ScoreRing from '../components/ScoreRing'
 import Spinner from '../components/Spinner'
 
-const dateFmt = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'long', year: 'numeric' })
+const STATUS_ORDER = ['fail', 'partial', 'pass', 'na']
+const dateFmt =new Intl.DateTimeFormat('es', { day: 'numeric', month: 'long', year: 'numeric' })
 
 function Paragraphs({ text }) {
   return text.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>)
@@ -71,6 +72,9 @@ export default function PublicReport() {
           <div className="report-score">
             <ScoreRing value={stats.score} size={140} stroke={11} label="de 100" />
             <strong className={`tone-text-${lv.tone}`}>{lv.label}</strong>
+            {stats.evaluated < stats.total && (
+              <span className="partial-note">Evaluación parcial: {stats.evaluated} de {stats.total} criterios</span>
+            )}
           </div>
         </div>
       </header>
@@ -110,31 +114,40 @@ export default function PublicReport() {
 
         <section className="report-section">
           <h2>Detalle de la evaluación</h2>
-          {CATEGORIES.map((c) => (
-            <div key={c.id} id={`cat-${c.id}`} className="card report-cat">
-              <div className="report-cat-head">
-                <h3 className="icon-heading"><c.icon size={22} aria-hidden="true" /> {c.title}</h3>
-                <span className="chip">{stats.byCategory[c.id].score ?? '—'}/100</span>
+          {CATEGORIES.map((c) => {
+            // Primero lo que hay que corregir; los criterios sin evaluar no se muestran.
+            const shown = c.criteria
+              .filter((cr) => evals[cr.id]?.status)
+              .sort((x, y) => STATUS_ORDER.indexOf(evals[x.id].status) - STATUS_ORDER.indexOf(evals[y.id].status))
+            const pending = c.criteria.length - shown.length
+            return (
+              <div key={c.id} id={`cat-${c.id}`} className="card report-cat">
+                <div className="report-cat-head">
+                  <h3 className="icon-heading"><c.icon size={22} aria-hidden="true" /> {c.title}</h3>
+                  <span className="chip">{stats.byCategory[c.id].score ?? '—'}/100</span>
+                </div>
+                <p className="muted small">{c.summary}</p>
+                {shown.length === 0 && <p className="small muted">Esta categoría aún no ha sido evaluada.</p>}
+                <ul className="report-criteria">
+                  {shown.map((cr) => {
+                    const e = evals[cr.id]
+                    return (
+                      <li key={cr.id} className={`rc status-${e.status || 'none'}`}>
+                        <span className="rc-badge">{STATUS[e.status].label}</span>
+                        <div className="rc-body">
+                          <strong>{cr.title}</strong>
+                          {e.autoDetail && <span className="small muted">{e.autoDetail}</span>}
+                          {e.note && <p className="rc-note">{e.note}</p>}
+                          {(e.status === 'fail' || e.status === 'partial') && <details className="small"><summary>¿Cómo mejorarlo?</summary><p>{cr.help}</p></details>}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {shown.length > 0 && pending > 0 && <p className="small muted pending-note">{pending} criterio(s) de esta categoría sin evaluar.</p>}
               </div>
-              <p className="muted small">{c.summary}</p>
-              <ul className="report-criteria">
-                {c.criteria.map((cr) => {
-                  const e = evals[cr.id] || {}
-                  return (
-                    <li key={cr.id} className={`rc status-${e.status || 'none'}`}>
-                      <span className="rc-badge">{e.status ? STATUS[e.status].label : 'Sin evaluar'}</span>
-                      <div className="rc-body">
-                        <strong>{cr.title}</strong>
-                        {e.autoDetail && <span className="small muted">{e.autoDetail}</span>}
-                        {e.note && <p className="rc-note">{e.note}</p>}
-                        {(e.status === 'fail' || e.status === 'partial') && <details className="small"><summary>¿Cómo mejorarlo?</summary><p>{cr.help}</p></details>}
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          ))}
+            )
+          })}
         </section>
 
         <footer className="report-footer">

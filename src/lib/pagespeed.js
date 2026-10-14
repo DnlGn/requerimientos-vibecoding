@@ -52,6 +52,27 @@ const score = (a, ...ids) => {
   return null
 }
 
+// Bytes que se podrían ahorrar optimizando imágenes (los insights de LH13 puntúan casi binario,
+// así que el tamaño real del ahorro es mejor señal que el score).
+function imageSavingsBytes(a) {
+  const insight = a['image-delivery-insight']
+  if (insight?.details?.items?.length) return insight.details.items.reduce((n, i) => n + (i.wastedBytes || 0), 0)
+  const legacy = a['modern-image-formats'] ?? a['uses-optimized-images']
+  return legacy?.details?.overallSavingsBytes ?? null
+}
+
+// Checks fallidos del insight de descubrimiento del LCP (p. ej. fetchpriority, lazy-load).
+function failedChecks(audit) {
+  const out = []
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return
+    if (typeof node.label === 'string' && node.value === false) out.push(node.label)
+    Object.values(node).forEach(walk)
+  }
+  walk(audit?.details)
+  return [...new Set(out)]
+}
+
 function fieldData(data) {
   const exp = data.loadingExperience?.metrics ? data.loadingExperience : data.originLoadingExperience
   const m = exp?.metrics
@@ -76,7 +97,7 @@ function summarize(data) {
   const failing = [...new Set(KEY_AUDITS)]
     .map((id) => a[id])
     .filter((x) => x && typeof x.score === 'number' && x.score < 0.9 && x.scoreDisplayMode !== 'notApplicable' && x.scoreDisplayMode !== 'informative')
-    .map((x) => ({ id: x.id, title: x.title, score: x.score, display: x.displayValue || null }))
+    .map((x) => ({ id: x.id, title: x.title, score: x.score, display: x.displayValue || failedChecks(x).join(' · ') || null }))
 
   return {
     fetchedAt: lh.fetchTime,
@@ -100,6 +121,9 @@ function summarize(data) {
       responsiveImages: score(a, 'image-size-responsive', 'uses-responsive-images'),
       unsizedImages: score(a, 'unsized-images'),
       renderBlocking: score(a, 'render-blocking-insight', 'render-blocking-resources'),
+      imageSavingsBytes: imageSavingsBytes(a),
+      lcpDiscovery: score(a, 'lcp-discovery-insight'),
+      lcpDiscoveryFailed: failedChecks(a['lcp-discovery-insight']),
     },
     field: fieldData(data),
     screenshot: a['final-screenshot']?.details?.data ?? null,

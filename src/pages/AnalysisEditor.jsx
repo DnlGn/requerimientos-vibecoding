@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, ExternalLink, Lock, MessageCircle, NotebookPen, Pencil, Play, QrCode, RefreshCw, RotateCcw, LayoutDashboard, Target, ThumbsUp, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, ExternalLink, Lock, MessageCircle, NotebookPen, Pencil, Play, QrCode, RefreshCw, RotateCcw, LayoutDashboard, Target, ThumbsUp, Trash2, Wand2 } from 'lucide-react'
 import { supabase, publicReportUrl } from '../lib/supabase'
 import { CATEGORIES, applyAutoSuggestions } from '../lib/checklist'
-import { computeScore, level } from '../lib/scoring'
+import { computeScore, level, suggestImprovements, suggestStrengths } from '../lib/scoring'
 import { STEPS, normalizeUrl, runFullAnalysis } from '../lib/analyzer'
 import CriterionCard from '../components/CriterionCard'
 import AutoResults from '../components/AutoResults'
@@ -128,6 +128,13 @@ export default function AnalysisEditor() {
     const publish = latest.current.status !== 'published'
     update({ status: publish ? 'published' : 'draft', published_at: publish ? new Date().toISOString() : latest.current.published_at }, { immediate: true })
     setPublishing(false)
+  }
+
+  function fillSuggestion(field, text) {
+    if (!text) return window.alert(field === 'strengths' ? 'Aún no hay categorías con puntaje alto (85 o más) para destacar.' : 'No hay criterios marcados como "No cumple" o "Parcial".')
+    const current = (latest.current[field] || '').trim()
+    if (current && !window.confirm('¿Reemplazar el texto actual por la sugerencia? Puedes editarla después.')) return
+    update({ [field]: text })
   }
 
   async function remove() {
@@ -312,14 +319,24 @@ export default function AnalysisEditor() {
                 <h2 className="icon-heading"><NotebookPen size={26} aria-hidden="true" /> Conclusiones</h2>
                 <p className="muted">Lo que escribas aquí aparece en el informe, excepto las notas privadas.</p>
               </div>
-              <label className="field card">
-                <span className="icon-label"><ThumbsUp size={18} aria-hidden="true" /> Fortalezas</span>
-                <textarea className="input" rows={4} value={a.strengths || ''} onChange={(e) => update({ strengths: e.target.value })} placeholder="¿Qué hizo especialmente bien el alumno?" />
-              </label>
-              <label className="field card">
-                <span className="icon-label"><Target size={18} aria-hidden="true" /> Próximos pasos / mejoras prioritarias</span>
-                <textarea className="input" rows={4} value={a.improvements || ''} onChange={(e) => update({ improvements: e.target.value })} placeholder="Las 3 mejoras con más impacto, en orden." />
-              </label>
+              <div className="field card">
+                <div className="field-head">
+                  <label htmlFor="f-strengths" className="icon-label"><ThumbsUp size={18} aria-hidden="true" /> Fortalezas</label>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => fillSuggestion('strengths', suggestStrengths(a.evaluations))}>
+                    <Wand2 size={16} aria-hidden="true" /> Sugerir
+                  </button>
+                </div>
+                <textarea id="f-strengths" className="input" rows={4} value={a.strengths || ''} onChange={(e) => update({ strengths: e.target.value })} placeholder="¿Qué hizo especialmente bien el alumno?" />
+              </div>
+              <div className="field card">
+                <div className="field-head">
+                  <label htmlFor="f-improvements" className="icon-label"><Target size={18} aria-hidden="true" /> Próximos pasos / mejoras prioritarias</label>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => fillSuggestion('improvements', suggestImprovements(a.evaluations))}>
+                    <Wand2 size={16} aria-hidden="true" /> Sugerir
+                  </button>
+                </div>
+                <textarea id="f-improvements" className="input" rows={6} value={a.improvements || ''} onChange={(e) => update({ improvements: e.target.value })} placeholder="Las mejoras con más impacto, en orden." />
+              </div>
               <label className="field card">
                 <span className="icon-label"><MessageCircle size={18} aria-hidden="true" /> Comentario general</span>
                 <textarea className="input" rows={4} value={a.general_notes || ''} onChange={(e) => update({ general_notes: e.target.value })} />

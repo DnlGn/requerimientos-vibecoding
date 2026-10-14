@@ -132,7 +132,11 @@ export default function AutoResults({ results, showErrors = true }) {
             <FileRow label="/llms.txt" file={site.files.llms} extra={`${site.files.llms.lines} líneas`} />
             <FileRow label="/llms-full.txt" file={site.files.llmsFull} extra={`${(site.files.llmsFull.bytes / 1024).toFixed(1)} KB`} />
             <FileRow label="/robots.txt" file={site.files.robots} extra={site.files.robots.analysis?.sitemaps.length ? 'declara sitemap' : ''} />
-            <FileRow label="/sitemap.xml" file={site.files.sitemap} extra={`${site.files.sitemap.urls} URLs`} />
+            <FileRow
+              label={site.files.sitemap.exists ? site.files.sitemap.url.replace(/^https?:\/\/[^/]+/, '') : '/sitemap.xml'}
+              file={site.files.sitemap}
+              extra={site.files.sitemap.isIndex ? `índice · ${site.files.sitemap.urls} sitemaps` : `${site.files.sitemap.urls} URLs`}
+            />
             <FileRow label="manifest" file={site.files.manifest} extra={site.files.manifest.data?.name || ''} />
           </ul>
           <dl className="kv">

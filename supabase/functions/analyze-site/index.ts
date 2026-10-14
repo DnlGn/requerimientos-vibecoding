@@ -263,12 +263,20 @@ Deno.serve(async (req) => {
   const geminiInClient = foundKeys.has("__gemini_client_usage__");
 
   // --- Archivos de posicionamiento ---
-  const [robots, sitemap, llms, llmsFull] = await Promise.all([
+  const [robots, llms, llmsFull] = await Promise.all([
     checkTextFile(origin, "/robots.txt"),
-    checkTextFile(origin, "/sitemap.xml"),
     checkTextFile(origin, "/llms.txt"),
     checkTextFile(origin, "/llms-full.txt"),
   ]);
+  // El sitemap puede tener otro nombre (Astro genera /sitemap-index.xml, WordPress /sitemap_index.xml).
+  // Primero se usan los declarados en robots.txt y luego los nombres habituales.
+  const robotsSitemaps = analyzeRobots(robots._text)?.sitemaps ?? [];
+  const sitemapCandidates = [...new Set([...robotsSitemaps, "/sitemap.xml", "/sitemap-index.xml", "/sitemap_index.xml"])].slice(0, 5);
+  let sitemap = await checkTextFile(origin, sitemapCandidates[0]);
+  for (const candidate of sitemapCandidates.slice(1)) {
+    if (sitemap.exists) break;
+    sitemap = await checkTextFile(origin, candidate);
+  }
   const manifestHref = link('link[rel="manifest"]');
   const manifest = manifestHref
     ? await checkTextFile(origin, manifestHref)
@@ -281,6 +289,7 @@ Deno.serve(async (req) => {
     } catch { /* manifest inválido */ }
   }
   const sitemapUrls = sitemap.exists ? (sitemap._text.match(/<loc>/g) || []).length : 0;
+  const sitemapIsIndex = sitemap.exists && /<sitemapindex/i.test(sitemap._text);
   const strip = <T extends { _text?: string }>(o: T) => {
     const { _text, ...rest } = o;
     return rest;
@@ -340,7 +349,7 @@ Deno.serve(async (req) => {
     },
     files: {
       robots: { ...strip(robots), analysis: analyzeRobots(robots._text) },
-      sitemap: { ...strip(sitemap), urls: sitemapUrls },
+      sitemap: { ...strip(sitemap), urls: sitemapUrls, isIndex: sitemapIsIndex },
       llms: strip(llms),
       llmsFull: strip(llmsFull),
       manifest: { ...strip(manifest), data: manifestData },

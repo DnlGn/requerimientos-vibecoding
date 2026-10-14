@@ -37,6 +37,34 @@ export function computeScore(evaluations = {}) {
   return { score: weights ? Math.round(weighted / weights) : null, byCategory, evaluated, total }
 }
 
+// Borradores de texto para Conclusiones, generados a partir de la evaluación.
+// Prioriza lo que más pesa en el puntaje: primero "No cumple", luego "Parcial".
+export function suggestImprovements(evaluations = {}, max = 5) {
+  const items = []
+  for (const cat of CATEGORIES) {
+    for (const c of cat.criteria) {
+      const e = evaluations[c.id]
+      if (e?.status !== 'fail' && e?.status !== 'partial') continue
+      items.push({ rank: (e.status === 'fail' ? 2 : 1) * cat.weight, cat, c, e })
+    }
+  }
+  return items
+    .sort((a, b) => b.rank - a.rank)
+    .slice(0, max)
+    .map(({ cat, c, e }, i) => `${i + 1}. ${c.title} (${cat.title}): ${e.note || e.autoDetail || c.help}`)
+    .join('\n')
+}
+
+export function suggestStrengths(evaluations = {}) {
+  const { byCategory } = computeScore(evaluations)
+  return CATEGORIES.filter((c) => byCategory[c.id].score >= 85 && byCategory[c.id].evaluated >= Math.ceil(c.criteria.length / 2))
+    .map((c) => {
+      const passed = c.criteria.filter((cr) => evaluations[cr.id]?.status === 'pass').slice(0, 3).map((cr) => cr.title.charAt(0).toLowerCase() + cr.title.slice(1))
+      return `• ${c.title} (${byCategory[c.id].score}/100): ${passed.join(', ')}.`
+    })
+    .join('\n')
+}
+
 export function level(score) {
   if (score == null) return { label: 'Sin evaluar', tone: 'muted' }
   if (score >= 90) return { label: 'Nivel profesional', tone: 'great' }
