@@ -149,6 +149,10 @@ function summarize(data) {
       lcpElement: lcpInfo(a).element,
       lcpPhases: lcpInfo(a).phases,
       compression: usesCompression(a),
+      // Estructura sobre el DOM ya renderizado (sirve también para SPA, cuyo HTML inicial está vacío).
+      landmarkMain: score(a, 'landmark-one-main'),
+      headingOrder: score(a, 'heading-order'),
+      lists: score(a, 'list'),
     },
     field: fieldData(data),
     screenshot: a['final-screenshot']?.details?.data ?? null,

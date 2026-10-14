@@ -80,6 +80,51 @@ async function checkTextFile(base: URL, path: string) {
   }
 }
 
+// Texto de plantilla. TODO/TBD/XXXX solo en mayúsculas: "todo" es una palabra normal en español.
+const PLACEHOLDER_RE = /lorem ipsum|example\.(com|org)|your (company|business|website|name)|tu empresa aqu[ií]|nombre de (la |tu )?empresa|\[(insert|insertar)[^\]]*\]/gi;
+const PLACEHOLDER_UPPER_RE = /\bTODO\b|\bTBD\b|\bX{4,}\b/g;
+const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+
+// Estructura de un llms.txt / llms-full.txt según https://llmstxt.org:
+// "# Nombre", resumen en cita "> ...", secciones "## ..." y listas de enlaces "[título](url): nota".
+function analyzeLlms(text: string, brandNames: string[]) {
+  if (!text) return null;
+  const sections = (text.match(/^##\s+\S.*$/gm) || []).map((s) => s.replace(/^##\s+/, "").trim());
+  const links = [...new Set([...text.matchAll(/\[[^\]]+\]\((https?:\/\/[^)\s]+)\)/g)].map((m) => m[1]))];
+  const normText = norm(text);
+  return {
+    h1: text.match(/^#\s+(\S.*)$/m)?.[1].trim() ?? null,
+    hasSummary: /^>\s*\S/m.test(text),
+    sections: sections.slice(0, 15),
+    sectionCount: sections.length,
+    links,
+    words: text.split(/\s+/).filter(Boolean).length,
+    placeholders: [...new Set([...(text.match(PLACEHOLDER_RE) || []).map((p) => p.toLowerCase()), ...(text.match(PLACEHOLDER_UPPER_RE) || [])])].slice(0, 5),
+    mentionsBrand: brandNames.length ? brandNames.some((b) => normText.includes(norm(b))) : null,
+  };
+}
+
+// Revisa (en paralelo y con tope) que los enlaces de llms.txt respondan.
+async function checkLinks(urls: string[], max = 10) {
+  const broken: { url: string; status: number }[] = [];
+  await Promise.all(urls.slice(0, max).map(async (url) => {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      let res = await fetch(url, { method: "HEAD", redirect: "follow", signal: ctrl.signal, headers: { "User-Agent": UA } });
+      if (res.status === 405 || res.status === 403) {
+        res = await fetch(url, { redirect: "follow", signal: ctrl.signal, headers: { "User-Agent": UA } });
+        await res.body?.cancel();
+      }
+      clearTimeout(t);
+      if (res.status >= 400) broken.push({ url, status: res.status });
+    } catch {
+      broken.push({ url, status: 0 });
+    }
+  }));
+  return { checked: Math.min(urls.length, max), broken };
+}
+
 function analyzeRobots(text: string) {
   if (!text) return null;
   const lines = text.split("\n").map((l) => l.split("#")[0].trim()).filter(Boolean);
@@ -290,7 +335,16 @@ Deno.serve(async (req) => {
   }
   const sitemapUrls = sitemap.exists ? (sitemap._text.match(/<loc>/g) || []).length : 0;
   const sitemapIsIndex = sitemap.exists && /<sitemapindex/i.test(sitemap._text);
-  const strip = <T extends { _text?: string }>(o: T) => {
+
+  // Calidad de los archivos llms: estructura, texto de plantilla, nombre del sitio y enlaces rotos.
+  const brandNames = [og.siteName, ...(title ?? "").split(/\s+[|–—·-]\s+/)]
+    .filter((s): s is string => !!s && s.trim().length >= 3)
+    .map((s) => s.trim());
+  const llmsAnalysis = analyzeLlms(llms._text, brandNames);
+  const llmsFullAnalysis = analyzeLlms(llmsFull._text, brandNames);
+  const llmsLinks = llmsAnalysis?.links.length ? await checkLinks(llmsAnalysis.links) : null;
+
+  const strip =<T extends { _text?: string }>(o: T) => {
     const { _text, ...rest } = o;
     return rest;
   };
@@ -355,8 +409,8 @@ Deno.serve(async (req) => {
     files: {
       robots: { ...strip(robots), analysis: analyzeRobots(robots._text) },
       sitemap: { ...strip(sitemap), urls: sitemapUrls, isIndex: sitemapIsIndex },
-      llms: strip(llms),
-      llmsFull: strip(llmsFull),
+      llms: { ...strip(llms), analysis: llmsAnalysis && { ...llmsAnalysis, links: llmsAnalysis.links.length, linkCheck: llmsLinks } },
+      llmsFull: { ...strip(llmsFull), analysis: llmsFullAnalysis && { ...llmsFullAnalysis, links: llmsFullAnalysis.links.length } },
       manifest: { ...strip(manifest), data: manifestData },
     },
   });

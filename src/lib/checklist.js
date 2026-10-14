@@ -92,6 +92,71 @@ function lcpResult(data, label, prev) {
   return res(status, detail + (g.held ? HELD : ''))
 }
 
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
+
+// Calidad de llms.txt / llms-full.txt a partir del análisis de estructura de la Edge Function.
+function llmsQuality(site) {
+  if (!site) return null
+  const { llms: L, llmsFull: F } = site.files
+  if (!L.exists && !F.exists) return res('fail', 'No hay llms.txt ni llms-full.txt que evaluar')
+  const a = L.exists ? L.analysis : null
+  const f = F.exists ? F.analysis : null
+  if (!a && !f) return null // análisis guardado antes de esta revisión: volver a analizar
+
+  const good = []
+  const issues = []
+  if (a) {
+    const ok = []
+    if (a.h1) ok.push('título'); else issues.push('llms.txt sin título "# Nombre"')
+    if (a.hasSummary) ok.push('resumen'); else issues.push('llms.txt sin resumen en cita ("> …")')
+    if (a.sectionCount) ok.push(plural(a.sectionCount, 'sección', 'secciones')); else issues.push('llms.txt sin secciones "## …"')
+    if (a.links) {
+      const broken = a.linkCheck?.broken ?? []
+      ok.push(`${plural(a.links, 'enlace', 'enlaces')}${a.linkCheck && !broken.length ? ' (funcionan)' : ''}`)
+      if (broken.length) issues.push(`${plural(broken.length, 'enlace roto', 'enlaces rotos')} en llms.txt (${broken.slice(0, 2).map((b) => b.url.replace(/^https?:\/\/[^/]+/, '') || '/').join(', ')})`)
+    } else issues.push('llms.txt sin enlaces a las páginas del sitio')
+    good.push(`llms.txt: ${ok.join(', ')}`)
+  }
+  if (f) {
+    good.push(`llms-full.txt: ${f.words.toLocaleString('es')} palabras, ${plural(f.sectionCount, 'sección', 'secciones')}`)
+    if (f.words < 300) issues.push(`llms-full.txt muy breve (${f.words} palabras)`)
+    if (f.sectionCount < 2) issues.push('llms-full.txt sin estructura de secciones')
+  }
+  const placeholders = [...new Set([...(a?.placeholders ?? []), ...(f?.placeholders ?? [])])]
+  if (placeholders.length) issues.push(`texto de plantilla: "${placeholders.join('", "')}"`)
+  if ([a, f].some((x) => x?.mentionsBrand === false)) issues.push('no menciona el nombre del sitio (¿es contenido genérico?)')
+
+  const status = placeholders.length || issues.length >= 3 ? 'fail' : issues.length ? 'partial' : 'pass'
+  return res(status, [...good, ...issues].join(' · ') + ' · Confirma que la información sea correcta')
+}
+
+// HTML semántico: etiquetas del HTML inicial y, para SPA, auditorías de Lighthouse sobre el DOM renderizado.
+function semanticResult(site, mobile) {
+  const LANDMARKS = ['header', 'nav', 'main', 'footer']
+  const audits = mobile?.audits ?? {}
+  const issues = []
+  const good = []
+  let severe = false
+  if (site && !site.content.isSpaShell) {
+    const tags = site.content.semantic
+    const missing = LANDMARKS.filter((t) => !tags.includes(t))
+    const present = tags.map((t) => `<${t}>`).join(' ')
+    if (present) good.push(`Usa ${present}`)
+    if (missing.length) issues.push(`faltan ${missing.map((t) => `<${t}>`).join(', ')}`)
+    if (!tags.includes('section') && !tags.includes('article')) issues.push('sin <section> ni <article>')
+    severe = missing.includes('main') || missing.length >= 3
+  } else if (audits.landmarkMain != null) {
+    if (audits.landmarkMain === 1) good.push('Tiene <main> (página renderizada)')
+    else { issues.push('sin <main>'); severe = true }
+  } else return null
+  if (audits.headingOrder === 1) good.push('encabezados en orden')
+  else if (audits.headingOrder === 0) issues.push('encabezados que saltan niveles (p. ej. H1 → H3)')
+  if (audits.lists === 0) issues.push('listas mal formadas')
+  if (site?.content.isSpaShell) good.push('HTML inicial vacío (SPA): revisado sobre la página renderizada')
+  const status = severe || issues.length >= 3 ? 'fail' : issues.length ? 'partial' : 'pass'
+  return res(status, [...good, ...issues].join(' · '))
+}
+
 export const CATEGORIES = [
   {
     id: 'responsive',
@@ -441,7 +506,12 @@ export const CATEGORIES = [
           return res(f.bytes > 1500 ? 'pass' : 'partial', `${f.lines} líneas · ${(f.bytes / 1024).toFixed(1)} KB`)
         },
       },
-      { id: 'llms-quality', title: 'Calidad del contenido para IA', help: 'Los archivos llms describen con precisión el proyecto, sin texto genérico, y coinciden con lo que muestra la web.' },
+      {
+        id: 'llms-quality',
+        title: 'Calidad del contenido para IA',
+        help: 'Los archivos llms siguen el formato de llmstxt.org ("# Nombre", resumen en "> …", secciones "## …" con enlaces), no tienen texto de plantilla, nombran el sitio y sus enlaces funcionan. La revisión automática mira la estructura: confirma tú que la información sea correcta.',
+        auto: ({ site }) => llmsQuality(site),
+      },
       {
         id: 'ai-crawlers',
         title: 'Permite crawlers de IA',
@@ -465,7 +535,12 @@ export const CATEGORIES = [
           return res(hasLlms || site.content.noscript ? 'partial' : 'fail', `HTML inicial vacío (SPA)${hasLlms ? ', compensado con archivos llms' : ''}`)
         },
       },
-      { id: 'semantic', title: 'HTML semántico', help: 'Usa header, nav, main, section, article y footer en vez de solo <div>. Ayuda a IAs y lectores de pantalla.' },
+      {
+        id: 'semantic',
+        title: 'HTML semántico',
+        help: 'Usa header, nav, main, section, article y footer en vez de solo <div>, con encabezados en orden (H1 → H2 → H3) y listas bien formadas. Ayuda a IAs y lectores de pantalla.',
+        auto: ({ site, mobile }) => semanticResult(site, mobile),
+      },
     ],
   },
   {
