@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, ExternalLink, Lock, MessageCircle, NotebookPen, Pencil, Play, QrCode, RefreshCw, LayoutDashboard, Target, ThumbsUp, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, ExternalLink, Lock, MessageCircle, NotebookPen, Pencil, Play, QrCode, RefreshCw, RotateCcw, LayoutDashboard, Target, ThumbsUp, Trash2 } from 'lucide-react'
 import { supabase, publicReportUrl } from '../lib/supabase'
 import { CATEGORIES, applyAutoSuggestions } from '../lib/checklist'
 import { computeScore, level } from '../lib/scoring'
-import { normalizeUrl, runFullAnalysis } from '../lib/analyzer'
+import { STEPS, normalizeUrl, runFullAnalysis } from '../lib/analyzer'
 import CriterionCard from '../components/CriterionCard'
 import AutoResults from '../components/AutoResults'
 import DevicePreview from '../components/DevicePreview'
@@ -94,11 +94,14 @@ export default function AnalysisEditor() {
     [update],
   )
 
-  const runAnalysis = useCallback(async () => {
+  const runAnalysis = useCallback(async (steps = STEPS) => {
     const url = latest.current?.url
     if (!url) return
-    setProgress({ site: 'pending', mobile: 'pending', desktop: 'pending' })
-    const results = await runFullAnalysis(url, (step, state) => setProgress((p) => ({ ...p, [step]: state })))
+    setProgress(Object.fromEntries(steps.map((s) => [s, 'pending'])))
+    const results = await runFullAnalysis(url, (step, state) => setProgress((p) => ({ ...p, [step]: state })), {
+      steps,
+      previous: latest.current.auto_results,
+    })
     const evaluations = applyAutoSuggestions(latest.current.evaluations || {}, results)
     update({ auto_results: results, evaluations }, { immediate: true })
     setProgress(null)
@@ -148,6 +151,7 @@ export default function AnalysisEditor() {
   const idx = sections.findIndex((s) => s.id === section)
   const category = CATEGORIES.find((c) => c.id === section)
   const canAnalyze = a.mode === 'auto' && a.url
+  const failedSteps = Object.keys(a.auto_results?.errors || {})
 
   return (
     <div className="editor">
@@ -236,10 +240,21 @@ export default function AnalysisEditor() {
                         : 'Revisa rendimiento (LCP, CLS…), metadata, llms.txt, robots, sitemap, API keys expuestas y más.'}
                     </p>
                   </div>
-                  <button className="btn btn-primary btn-lg" onClick={runAnalysis} disabled={!!progress}>
+                  <button className="btn btn-primary btn-lg" onClick={() => runAnalysis()} disabled={!!progress}>
                     {progress ? <RefreshCw size={20} className="spin" aria-hidden="true" /> : a.auto_results ? <RefreshCw size={20} aria-hidden="true" /> : <Play size={20} aria-hidden="true" />}
                     {progress ? 'Analizando…' : a.auto_results ? 'Volver a analizar' : 'Analizar ahora'}
                   </button>
+                  {!progress && failedSteps.length > 0 && (
+                    <div className="retry-box">
+                      <p className="small">
+                        <AlertTriangle size={16} className="inline-icon" aria-hidden="true" />
+                        Falló: {failedSteps.map((s) => STEP_LABELS[s]).join(', ')}. El resto del análisis se guardó.
+                      </p>
+                      <button className="btn btn-secondary" onClick={() => runAnalysis(failedSteps)}>
+                        <RotateCcw size={18} aria-hidden="true" /> Reintentar solo eso
+                      </button>
+                    </div>
+                  )}
                   {progress && (
                     <ul className="progress-list">
                       {Object.entries(progress).map(([k, v]) => (
@@ -249,7 +264,7 @@ export default function AnalysisEditor() {
                           <span className="small muted">{{ pending: 'En cola', running: 'En curso…', done: 'Listo', error: 'Error' }[v]}</span>
                         </li>
                       ))}
-                      <li className="small muted">PageSpeed puede tardar entre 20 y 60 segundos.</li>
+                      <li className="small muted">PageSpeed suele tardar entre 20 y 60 segundos (máximo 3 minutos).</li>
                     </ul>
                   )}
                 </div>

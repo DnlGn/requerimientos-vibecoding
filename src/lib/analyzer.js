@@ -1,6 +1,8 @@
 import { supabase } from './supabase'
 import { runPageSpeed } from './pagespeed'
 
+export const STEPS = ['site', 'mobile', 'desktop']
+
 export function normalizeUrl(raw) {
   const v = (raw || '').trim()
   if (!v) return ''
@@ -9,30 +11,43 @@ export function normalizeUrl(raw) {
 
 async function runSite(url) {
   const { data, error } = await supabase.functions.invoke('analyze-site', { body: { url } })
-  if (error) {
-    let msg = error.message
-    try {
-      const body = await error.context?.json?.()
-      if (body?.error) msg = body.error
-    } catch { /* sin body */ }
-    throw new Error(msg)
-  }
-  return data
+  if (!error) return data
+  const status = error.context?.status
+  let body = null
+  try {
+    body = await error.context?.json?.()
+  } catch { /* sin body */ }
+  if (status === 404 && body?.code === 'NOT_FOUND') throw new Error('La Edge Function "analyze-site" no está desplegada en Supabase.')
+  if (status === 401) throw new Error('Sesión expirada: vuelve a iniciar sesión.')
+  if (error.name === 'FunctionsFetchError') throw new Error('No se pudo contactar la Edge Function (¿sin conexión?).')
+  throw new Error(body?.error || body?.message || error.message)
 }
 
-// Ejecuta las 3 fuentes en paralelo y avisa el progreso de cada una.
-export async function runFullAnalysis(rawUrl, onProgress) {
+const RUNNERS = {
+  site: runSite,
+  mobile: (url) => runPageSpeed(url, 'mobile'),
+  desktop: (url) => runPageSpeed(url, 'desktop'),
+}
+
+// Ejecuta las fuentes pedidas en paralelo. Si se pasa `previous`, conserva los
+// resultados de las fuentes que no se vuelven a ejecutar (para reintentar solo lo que falló).
+export async function runFullAnalysis(rawUrl, onProgress, { steps = STEPS, previous = null } = {}) {
   const url = normalizeUrl(rawUrl)
-  const steps = { site: runSite(url), mobile: runPageSpeed(url, 'mobile'), desktop: runPageSpeed(url, 'desktop') }
-  const results = { url, ranAt: new Date().toISOString(), errors: {} }
+  const keep = previous && previous.url === url ? previous : null
+  const results = {
+    ...(keep || {}),
+    url,
+    ranAt: new Date().toISOString(),
+    errors: Object.fromEntries(Object.entries(keep?.errors || {}).filter(([k]) => !steps.includes(k))),
+  }
   await Promise.all(
-    Object.entries(steps).map(async ([key, p]) => {
+    steps.map(async (key) => {
       onProgress?.(key, 'running')
       try {
-        results[key] = await p
+        results[key] = await RUNNERS[key](url)
         onProgress?.(key, 'done')
       } catch (e) {
-        results[key] = null
+        results[key] = keep?.[key] ?? null
         results.errors[key] = e.message
         onProgress?.(key, 'error', e.message)
       }

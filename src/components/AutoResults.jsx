@@ -36,7 +36,7 @@ function Device({ data, label, icon: Icon }) {
       </div>
       {data.field && (
         <p className="small muted">
-          Datos reales de usuarios (Chrome UX Report): LCP {formatMetric('lcp', data.field.lcp)} · CLS {formatMetric('cls', data.field.cls)} · INP {formatMetric('inp', data.field.inp)}
+          Datos reales de usuarios{data.field.scope === 'origin' ? ' (todo el dominio)' : ''}, Chrome UX Report: LCP {formatMetric('lcp', data.field.lcp)} · CLS {formatMetric('cls', data.field.cls)} · INP {formatMetric('inp', data.field.inp)}
         </p>
       )}
     </section>
@@ -59,7 +59,7 @@ function FileRow({ label, file, extra }) {
   )
 }
 
-export default function AutoResults({ results }) {
+export default function AutoResults({ results, showErrors = true }) {
   if (!results) return null
   const { site, mobile, desktop, errors = {} } = results
   const shot = mobile?.screenshot || desktop?.screenshot
@@ -68,7 +68,7 @@ export default function AutoResults({ results }) {
 
   return (
     <div className="auto-results">
-      {Object.entries(errors).length > 0 && (
+      {showErrors && Object.entries(errors).length > 0 && (
         <div className="alert alert-warn">
           {Object.entries(errors).map(([k, v]) => (
             <p key={k}><strong>{{ site: 'Análisis HTML', mobile: 'PageSpeed móvil', desktop: 'PageSpeed escritorio' }[k]}:</strong> {v}</p>

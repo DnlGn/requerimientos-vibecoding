@@ -104,7 +104,7 @@ export default function PublicReport() {
         {r.auto_results && (
           <section className="report-section">
             <h2>Análisis automático</h2>
-            <AutoResults results={r.auto_results} />
+            <AutoResults results={r.auto_results} showErrors={false} />
           </section>
         )}
 

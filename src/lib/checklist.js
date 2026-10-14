@@ -53,7 +53,6 @@ export const CATEGORIES = [
         id: 'font-legible',
         title: 'Textos legibles sin hacer zoom',
         help: 'Texto base de 16 px o más en celular, buen interlineado y líneas no demasiado largas.',
-        auto: ({ mobile }) => (mobile?.audits.fontSize != null ? res(mobile.audits.fontSize === 1 ? 'pass' : 'fail', 'Auditoría de tamaño de fuente (Lighthouse)') : null),
       },
       {
         id: 'responsive-images',
@@ -153,14 +152,23 @@ export const CATEGORIES = [
         id: 'images-optimized',
         title: 'Imágenes optimizadas',
         help: 'Formatos modernos (WebP/AVIF), comprimidas, con width/height y carga diferida (loading="lazy") fuera de pantalla.',
+        // Se usa Lighthouse (DOM ya renderizado). El HTML inicial de una SPA no tiene
+        // imágenes, así que contarlas ahí daría un "Cumple" falso.
         auto: ({ mobile, site }) => {
-          const s = mobile?.audits.modernImages
-          if (s == null && !site) return null
-          const parts = []
-          if (s != null) parts.push(s >= 0.9 ? 'Formatos/peso OK' : 'Hay imágenes pesadas o en formatos antiguos')
-          if (site?.content.images.total) parts.push(`${site.content.images.withoutDimensions}/${site.content.images.total} sin width/height en el HTML`)
-          const ok = (s == null || s >= 0.9) && (!site || site.content.images.withoutDimensions === 0)
-          return res(ok ? 'pass' : 'partial', parts.join(' · '))
+          if (mobile) {
+            const { imageDelivery: d, unsizedImages: u } = mobile.audits
+            if (d == null && u == null) return res('pass', 'Lighthouse no encontró imágenes que optimizar')
+            const parts = []
+            if (d != null) parts.push(d >= 0.9 ? 'Formato y peso OK' : 'Hay imágenes pesadas o en formatos antiguos (usar WebP/AVIF)')
+            if (u != null) parts.push(u === 1 ? 'todas con width/height' : 'hay imágenes sin width/height (causan saltos)')
+            const bad = [d, u].filter((v) => v != null && v < 0.9).length
+            return res(bad === 0 ? 'pass' : bad === 2 || (d != null && d < 0.5) ? 'fail' : 'partial', parts.join(' · '))
+          }
+          if (site && !site.content.isSpaShell && site.content.images.total) {
+            const { total, withoutDimensions: w } = site.content.images
+            return res(w === 0 ? 'pass' : 'partial', `${w}/${total} imágenes sin width/height en el HTML (sin datos de PageSpeed)`)
+          }
+          return null
         },
       },
       {
@@ -463,15 +471,21 @@ export function applyAutoSuggestions(evaluations, autoResults) {
   const r = { site: autoResults?.site ?? null, mobile: autoResults?.mobile ?? null, desktop: autoResults?.desktop ?? null }
   const next = { ...evaluations }
   for (const c of ALL_CRITERIA) {
-    if (!c.auto) continue
-    let out
+    let out = null
     try {
-      out = c.auto(r)
+      out = c.auto ? c.auto(r) : null
     } catch {
       out = null
     }
-    if (!out) continue
     const current = next[c.id] || {}
+    if (!out) {
+      // Sin datos nuevos: limpia sugerencias obsoletas y estados que eran solo automáticos.
+      if (current.autoDetail || current.source === 'auto') {
+        const { autoStatus: _s, autoDetail: _d, ...rest } = current
+        next[c.id] = current.source === 'auto' ? { ...rest, status: null, source: null } : rest
+      }
+      continue
+    }
     const manual = current.source === 'manual'
     next[c.id] = {
       ...current,
