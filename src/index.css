@@ -503,6 +503,19 @@ svg.lucide { flex-shrink: 0; }
 .photo-badge { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgb(0 0 0 / 0.65); color: #fff; }
 .photo-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .photo-actions .link-btn { margin: 0; padding: 8px 0; }
+.photo-actions { align-items: center; }
+.drop-hint { display: none; align-items: center; gap: 6px; }
+@media (hover: hover) and (pointer: fine) { .drop-hint { display: inline-flex; } }
+.photo-strip.dropzone { padding: 12px; border: 2px dashed var(--border); border-radius: 12px; transition: border-color 0.15s, background 0.15s; }
+/* Resaltado mientras se arrastra una imagen encima */
+.drop-active { position: relative; }
+.drop-active::after {
+  content: 'Suelta para agregar las fotos'; position: absolute; inset: 0; z-index: 3;
+  display: grid; place-items: center; border: 2px dashed var(--primary); border-radius: inherit;
+  background: color-mix(in srgb, var(--surface) 86%, var(--primary)); color: var(--primary); font-size: 1.05rem;
+  font-weight: 700; pointer-events: none;
+}
+.photo-strip.dropzone.drop-active { border-color: transparent; min-height: 96px; }
 
 .viewer-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgb(5 6 10 / 0.88); animation: fade 0.15s ease; }
 .viewer { position: relative; width: 100%; max-width: 1100px; max-height: calc(100dvh - 32px); display: flex; flex-direction: column; gap: 12px; }

@@ -2,6 +2,7 @@ import { memo, useState } from 'react'
 import { Ban, Check, CircleHelp, Minus, MessageSquarePlus, Sparkles, Trash2, X } from 'lucide-react'
 import { STATUS } from '../lib/checklist'
 import PhotoStrip from './PhotoStrip'
+import { useImageDrop } from '../lib/useImageDrop'
 
 const ORDER = ['pass', 'partial', 'fail', 'na']
 const STATUS_ICONS = { pass: Check, partial: Minus, fail: X, na: Ban }
@@ -10,6 +11,8 @@ function CriterionCard({ criterion, value = {}, onChange, photos, uploading = 0,
   const [showHelp, setShowHelp] = useState(false)
   const [showNote, setShowNote] = useState(Boolean(value.note))
   const { status, note, autoStatus, autoDetail, source } = value
+  // Toda la tarjeta recibe imágenes arrastradas (la tira de miniaturas es un blanco muy pequeño).
+  const { dragging, dropProps } = useImageDrop((files) => onAddPhotos(criterion.id, files), Boolean(onAddPhotos))
 
   const setStatus = (s) => onChange(criterion.id, { status: status === s ? null : s, source: 'manual' })
   const useAuto = () => onChange(criterion.id, { status: autoStatus, source: 'auto' })
@@ -19,7 +22,7 @@ function CriterionCard({ criterion, value = {}, onChange, photos, uploading = 0,
   }
 
   return (
-    <article className={`criterion status-${status || 'none'}`}>
+    <article className={`criterion status-${status || 'none'} ${dragging ? 'drop-active' : ''}`} {...dropProps}>
       <div className="criterion-head">
         <div className="criterion-title">
           <h4>{criterion.title}</h4>

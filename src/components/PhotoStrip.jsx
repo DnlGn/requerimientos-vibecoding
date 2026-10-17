@@ -1,12 +1,15 @@
 import { useRef } from 'react'
-import { Camera, ImagePlus, Loader2, Lock } from 'lucide-react'
+import { Camera, ImagePlus, Loader2, Lock, Upload } from 'lucide-react'
 import { photoUrl } from '../lib/photos'
+import { useImageDrop } from '../lib/useImageDrop'
 
 // Miniaturas de fotos + botones para tomar una foto (cámara de la tablet) o elegir de la galería.
-// En computador también se puede pegar una captura (Ctrl+V) con la tira enfocada.
-export default function PhotoStrip({ photos = [], editable = false, uploading = 0, onAdd, onOpen, compact = false }) {
+// En computador también se pueden arrastrar imágenes o pegar una captura (Ctrl+V).
+// `dropzone`: la tira misma recibe imágenes arrastradas (si no, lo hace el contenedor padre).
+export default function PhotoStrip({ photos = [], editable = false, uploading = 0, onAdd, onOpen, compact = false, dropzone = false }) {
   const cameraRef = useRef(null)
   const galleryRef = useRef(null)
+  const { dragging, dropProps } = useImageDrop((files) => onAdd(files), editable && dropzone)
 
   if (!editable && !photos.length) return null
 
@@ -25,7 +28,11 @@ export default function PhotoStrip({ photos = [], editable = false, uploading = 
   }
 
   return (
-    <div className={`photo-strip ${compact ? 'compact' : ''}`} onPaste={editable ? paste : undefined}>
+    <div
+      className={`photo-strip ${compact ? 'compact' : ''} ${editable && dropzone ? 'dropzone' : ''} ${dragging ? 'drop-active' : ''}`}
+      onPaste={editable ? paste : undefined}
+      {...dropProps}
+    >
       {(photos.length > 0 || uploading > 0) && (
         <ul className="photo-thumbs">
           {photos.map((p, i) => (
@@ -54,6 +61,7 @@ export default function PhotoStrip({ photos = [], editable = false, uploading = 
           <button type="button" className="link-btn" onClick={() => galleryRef.current?.click()}>
             <ImagePlus size={18} aria-hidden="true" /> Subir imagen
           </button>
+          <span className="drop-hint small muted"><Upload size={16} aria-hidden="true" /> o arrástralas aquí</span>
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={pick} />
           <input ref={galleryRef} type="file" accept="image/*" multiple hidden onChange={pick} />
         </div>

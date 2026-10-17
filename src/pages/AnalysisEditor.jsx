@@ -59,6 +59,17 @@ export default function AnalysisEditor() {
       .catch((e) => setPhotosError(/analysis_photos/.test(e.message) ? 'Falta aplicar la migración de fotos en Supabase.' : e.message))
   }, [id])
 
+  // Si se suelta una imagen fuera de una zona de fotos, el navegador la abriría y saldría del editor.
+  useEffect(() => {
+    const block = (e) => [...(e.dataTransfer?.types || [])].includes('Files') && e.preventDefault()
+    window.addEventListener('dragover', block)
+    window.addEventListener('drop', block)
+    return () => {
+      window.removeEventListener('dragover', block)
+      window.removeEventListener('drop', block)
+    }
+  }, [])
+
   // Fotos agrupadas por criterio (o "general"); referencias estables para no re-renderizar cada tarjeta.
   const photosByKey = useMemo(() => {
     const map = {}
@@ -421,6 +432,7 @@ export default function AnalysisEditor() {
                 ) : (
                   <PhotoStrip
                     editable
+                    dropzone
                     photos={photosByKey[GENERAL] || NO_PHOTOS}
                     uploading={uploading[GENERAL] || 0}
                     onAdd={(files) => addPhotos(GENERAL, files)}
