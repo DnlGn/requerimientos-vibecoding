@@ -1,11 +1,12 @@
 import { memo, useState } from 'react'
 import { Ban, Check, CircleHelp, Minus, MessageSquarePlus, Sparkles, Trash2, X } from 'lucide-react'
 import { STATUS } from '../lib/checklist'
+import PhotoStrip from './PhotoStrip'
 
 const ORDER = ['pass', 'partial', 'fail', 'na']
 const STATUS_ICONS = { pass: Check, partial: Minus, fail: X, na: Ban }
 
-function CriterionCard({ criterion, value = {}, onChange }) {
+function CriterionCard({ criterion, value = {}, onChange, photos, uploading = 0, onAddPhotos, onOpenPhoto }) {
   const [showHelp, setShowHelp] = useState(false)
   const [showNote, setShowNote] = useState(Boolean(value.note))
   const { status, note, autoStatus, autoDetail, source } = value
@@ -79,6 +80,17 @@ function CriterionCard({ criterion, value = {}, onChange }) {
         <button type="button" className="link-btn add-note" onClick={() => setShowNote(true)}>
           <MessageSquarePlus size={18} aria-hidden="true" /> Agregar comentario
         </button>
+      )}
+
+      {onAddPhotos && (
+        <PhotoStrip
+          editable
+          compact
+          photos={photos}
+          uploading={uploading}
+          onAdd={(files) => onAddPhotos(criterion.id, files)}
+          onOpen={(i) => onOpenPhoto(criterion.id, i)}
+        />
       )}
     </article>
   )

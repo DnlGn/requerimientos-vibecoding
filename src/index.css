@@ -488,6 +488,38 @@ svg.lucide { flex-shrink: 0; }
 .frame-box { position: relative; width: 100%; overflow: hidden; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
 .frame-box iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; background: #fff; }
 
+/* ---------- Fotos ---------- */
+.photo-strip { display: flex; flex-direction: column; gap: 8px; border-radius: 12px; }
+.photo-strip:focus-within { outline: none; }
+.photo-thumbs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+.photo-strip.compact .photo-thumbs { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+.photo-thumb {
+  position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; padding: 0; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); cursor: zoom-in;
+}
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.2s; }
+.photo-thumb:hover img { transform: scale(1.04); }
+.photo-thumb.uploading { display: grid; place-items: center; color: var(--text-2); cursor: progress; }
+.photo-badge { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgb(0 0 0 / 0.65); color: #fff; }
+.photo-actions { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.photo-actions .link-btn { margin: 0; padding: 8px 0; }
+
+.viewer-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgb(5 6 10 / 0.88); animation: fade 0.15s ease; }
+.viewer { position: relative; width: 100%; max-width: 1100px; max-height: calc(100dvh - 32px); display: flex; flex-direction: column; gap: 12px; }
+.viewer-figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 0; }
+.viewer-figure img { max-width: 100%; max-height: calc(100dvh - 180px); object-fit: contain; border-radius: 12px; background: #000; }
+.viewer-figure figcaption { color: #e9ecf3; text-align: center; }
+.viewer-close { position: absolute; top: -6px; right: -6px; z-index: 2; display: grid; place-items: center; width: 48px; height: 48px; border: 0; border-radius: 50%; background: rgb(255 255 255 / 0.14); color: #fff; cursor: pointer; }
+.viewer-nav { position: absolute; top: 40%; display: grid; place-items: center; width: 52px; height: 52px; border: 0; border-radius: 50%; background: rgb(0 0 0 / 0.5); color: #fff; cursor: pointer; }
+.viewer-nav:disabled { opacity: 0.25; cursor: default; }
+.viewer-nav.prev { left: 8px; }
+.viewer-nav.next { right: 8px; }
+.viewer-count { align-self: center; color: #c3c8d6; font-size: 0.85rem; }
+.viewer-tools { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; border-radius: 14px; background: var(--surface); }
+.viewer-tools .input { flex: 1 1 260px; }
+.viewer-tools .btn-danger-ghost { align-self: auto; }
+.rc-body .photo-strip { margin-top: 8px; }
+
 /* ---------- Modal QR ---------- */
 .modal-backdrop {
   position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
@@ -560,5 +592,7 @@ svg.lucide { flex-shrink: 0; }
   .report-body { margin-top: 16px; }
   .card, .report-cat, .criterion { break-inside: avoid; box-shadow: none; }
   .rc details { display: none; }
+  .viewer-backdrop, .photo-actions { display: none !important; }
+  .photo-thumb { break-inside: avoid; }
   a { color: inherit; text-decoration: none; }
 }

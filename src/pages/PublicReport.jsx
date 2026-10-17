@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
-import { ExternalLink, Lock, MessageCircle, Printer, Target, ThumbsUp } from 'lucide-react'
+import { ExternalLink, Images, Lock, MessageCircle, Printer, Target, ThumbsUp } from 'lucide-react'
 import { supabase, publicReportUrl } from '../lib/supabase'
 import { CATEGORIES, STATUS } from '../lib/checklist'
 import { computeScore, level } from '../lib/scoring'
 import AutoResults from '../components/AutoResults'
 import ScoreRing from '../components/ScoreRing'
 import Spinner from '../components/Spinner'
+import PhotoStrip from '../components/PhotoStrip'
+import PhotoViewer from '../components/PhotoViewer'
 
 const STATUS_ORDER = ['fail', 'partial', 'pass', 'na']
 const dateFmt =new Intl.DateTimeFormat('es', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -19,7 +21,20 @@ function Paragraphs({ text }) {
 export default function PublicReport() {
   const { slug } = useParams()
   const [r, setR] = useState(undefined)
+  const [photos, setPhotos] = useState([])
+  const [viewer, setViewer] = useState(null) // { key, index }
   const [error, setError] = useState(null)
+
+  useEffect(() => {
+    // Si la migración de fotos aún no se aplicó, el informe se muestra igual, sin fotos.
+    supabase.rpc('get_public_report_photos', { p_slug: slug }).then(({ data }) => setPhotos(data || []))
+  }, [slug])
+
+  const photosByKey = useMemo(() => {
+    const map = {}
+    for (const p of photos) (map[p.criterion_id || 'general'] ||= []).push(p)
+    return map
+  }, [photos])
 
   useEffect(() => {
     supabase.rpc('get_public_report', { p_slug: slug }).then(({ data, error }) => {
@@ -105,6 +120,13 @@ export default function PublicReport() {
           </section>
         )}
 
+        {photosByKey.general?.length > 0 && (
+          <section className="report-section">
+            <h2 className="icon-heading"><Images size={24} aria-hidden="true" /> Fotos del proyecto</h2>
+            <PhotoStrip photos={photosByKey.general} onOpen={(i) => setViewer({ key: 'general', index: i })} />
+          </section>
+        )}
+
         {r.auto_results && (
           <section className="report-section">
             <h2>Análisis automático</h2>
@@ -138,6 +160,7 @@ export default function PublicReport() {
                           <strong>{cr.title}</strong>
                           {e.autoDetail && <span className="small muted">{e.autoDetail}</span>}
                           {e.note && <p className="rc-note">{e.note}</p>}
+                          <PhotoStrip compact photos={photosByKey[cr.id]} onOpen={(i) => setViewer({ key: cr.id, index: i })} />
                           {(e.status === 'fail' || e.status === 'partial') && <details className="small"><summary>¿Cómo mejorarlo?</summary><p>{cr.help}</p></details>}
                         </div>
                       </li>
@@ -149,6 +172,15 @@ export default function PublicReport() {
             )
           })}
         </section>
+
+        {viewer && (
+          <PhotoViewer
+            photos={photosByKey[viewer.key] || []}
+            index={viewer.index}
+            onIndex={(index) => setViewer((v) => ({ ...v, index }))}
+            onClose={() => setViewer(null)}
+          />
+        )}
 
         <footer className="report-footer">
           <div className="qr-box small-qr"><QRCodeSVG value={url} size={112} marginSize={1} /></div>

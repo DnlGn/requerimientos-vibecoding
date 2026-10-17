@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, ExternalLink, Lock, MessageCircle, NotebookPen, Pencil, Play, QrCode, RefreshCw, RotateCcw, LayoutDashboard, Target, ThumbsUp, Trash2, Wand2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, ExternalLink, Images, Lock, MessageCircle, NotebookPen, Pencil, Play, QrCode, RefreshCw, RotateCcw, LayoutDashboard, Target, ThumbsUp, Trash2, Wand2 } from 'lucide-react'
 import { supabase, publicReportUrl } from '../lib/supabase'
 import { CATEGORIES, applyAutoSuggestions } from '../lib/checklist'
 import { computeScore, level, suggestImprovements, suggestStrengths } from '../lib/scoring'
@@ -11,8 +11,13 @@ import DevicePreview from '../components/DevicePreview'
 import ScoreRing from '../components/ScoreRing'
 import QrModal from '../components/QrModal'
 import Spinner from '../components/Spinner'
+import PhotoStrip from '../components/PhotoStrip'
+import PhotoViewer from '../components/PhotoViewer'
+import { deletePhotos, listPhotos, updatePhoto, uploadPhoto } from '../lib/photos'
 
 const SAVE_DELAY = 800
+const GENERAL = 'general'
+const NO_PHOTOS = []
 const STEP_LABELS = { site: 'HTML, metadata y archivos', mobile: 'PageSpeed · celular', desktop: 'PageSpeed · escritorio' }
 
 export default function AnalysisEditor() {
@@ -27,6 +32,10 @@ export default function AnalysisEditor() {
   const [showQr, setShowQr] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [editInfo, setEditInfo] = useState(false)
+  const [photos, setPhotos] = useState([])
+  const [photosError, setPhotosError] = useState(null)
+  const [uploading, setUploading] = useState({})
+  const [viewer, setViewer] = useState(null) // { key, index }
 
   const latest = useRef(null)
   const pending = useRef({})
@@ -45,7 +54,56 @@ export default function AnalysisEditor() {
         latest.current = data
         setA(data)
       })
+    listPhotos(id)
+      .then(setPhotos)
+      .catch((e) => setPhotosError(/analysis_photos/.test(e.message) ? 'Falta aplicar la migración de fotos en Supabase.' : e.message))
   }, [id])
+
+  // Fotos agrupadas por criterio (o "general"); referencias estables para no re-renderizar cada tarjeta.
+  const photosByKey = useMemo(() => {
+    const map = {}
+    for (const p of photos) (map[p.criterion_id || GENERAL] ||= []).push(p)
+    return map
+  }, [photos])
+
+  const addPhotos = useCallback(async (key, files) => {
+    setUploading((u) => ({ ...u, [key]: (u[key] || 0) + files.length }))
+    const failed = []
+    for (const file of files) {
+      try {
+        const photo = await uploadPhoto(id, file, { criterionId: key === GENERAL ? null : key })
+        setPhotos((ps) => [...ps, photo])
+      } catch (e) {
+        failed.push(e.message)
+      } finally {
+        setUploading((u) => ({ ...u, [key]: u[key] - 1 }))
+      }
+    }
+    if (failed.length) window.alert(`No se pudo subir ${failed.length} foto(s): ${failed[0]}`)
+  }, [id])
+
+  const openPhoto = useCallback((key, index) => setViewer({ key, index }), [])
+
+  async function changePhoto(photo, patch) {
+    setPhotos((ps) => ps.map((p) => (p.id === photo.id ? { ...p, ...patch } : p)))
+    try {
+      await updatePhoto(photo.id, patch)
+    } catch (e) {
+      setPhotos((ps) => ps.map((p) => (p.id === photo.id ? photo : p)))
+      window.alert(e.message)
+    }
+  }
+
+  async function removePhoto(photo) {
+    try {
+      await deletePhotos([photo])
+    } catch (e) {
+      return window.alert(e.message)
+    }
+    const remaining = (photosByKey[viewer.key] || []).length - 1
+    setPhotos((ps) => ps.filter((p) => p.id !== photo.id))
+    setViewer((v) => (remaining <= 0 ? null : { ...v, index: Math.min(v.index, remaining - 1) }))
+  }
 
   const flush = useCallback(async () => {
     clearTimeout(timer.current)
@@ -141,6 +199,11 @@ export default function AnalysisEditor() {
     if (!window.confirm(`¿Eliminar el análisis de "${a.project_name}"? Esta acción no se puede deshacer.`)) return
     clearTimeout(timer.current)
     pending.current = {}
+    try {
+      await deletePhotos(photos)
+    } catch (e) {
+      return window.alert(`No se pudieron borrar las fotos: ${e.message}`)
+    }
     const { error } = await supabase.from('analyses').delete().eq('id', id)
     if (error) return window.alert(error.message)
     navigate('/', { replace: true })
@@ -308,7 +371,16 @@ export default function AnalysisEditor() {
               </div>
               {category.id === 'responsive' && a.mode === 'auto' && <DevicePreview url={a.url} />}
               {category.criteria.map((cr) => (
-                <CriterionCard key={cr.id} criterion={cr} value={a.evaluations?.[cr.id]} onChange={setCriterion} />
+                <CriterionCard
+                  key={cr.id}
+                  criterion={cr}
+                  value={a.evaluations?.[cr.id]}
+                  onChange={setCriterion}
+                  photos={photosByKey[cr.id] || NO_PHOTOS}
+                  uploading={uploading[cr.id] || 0}
+                  onAddPhotos={addPhotos}
+                  onOpenPhoto={openPhoto}
+                />
               ))}
             </div>
           )}
@@ -341,6 +413,21 @@ export default function AnalysisEditor() {
                 <span className="icon-label"><MessageCircle size={18} aria-hidden="true" /> Comentario general</span>
                 <textarea className="input" rows={4} value={a.general_notes || ''} onChange={(e) => update({ general_notes: e.target.value })} />
               </label>
+              <div className="field card">
+                <span className="icon-label"><Images size={18} aria-hidden="true" /> Fotos del proyecto</span>
+                <p className="small muted">Fotos de la presentación, del proyecto en uso, capturas… Las marcadas como privadas no aparecen en el informe.</p>
+                {photosError ? (
+                  <p className="alert alert-warn small">{photosError}</p>
+                ) : (
+                  <PhotoStrip
+                    editable
+                    photos={photosByKey[GENERAL] || NO_PHOTOS}
+                    uploading={uploading[GENERAL] || 0}
+                    onAdd={(files) => addPhotos(GENERAL, files)}
+                    onOpen={(i) => openPhoto(GENERAL, i)}
+                  />
+                )}
+              </div>
               <label className="field card private">
                 <span className="icon-label"><Lock size={18} aria-hidden="true" /> Notas privadas <em className="muted small">(solo tú las ves)</em></span>
                 <textarea className="input" rows={3} value={a.private_notes || ''} onChange={(e) => update({ private_notes: e.target.value })} placeholder="Observaciones de la presentación, recordatorios…" />
@@ -364,6 +451,17 @@ export default function AnalysisEditor() {
         </section>
       </div>
 
+      {viewer && (
+        <PhotoViewer
+          editable
+          photos={photosByKey[viewer.key] || NO_PHOTOS}
+          index={viewer.index}
+          onIndex={(index) => setViewer((v) => ({ ...v, index }))}
+          onClose={() => setViewer(null)}
+          onUpdate={changePhoto}
+          onDelete={removePhoto}
+        />
+      )}
       {showQr && <QrModal analysis={a} onClose={() => setShowQr(false)} onTogglePublish={togglePublish} busy={publishing} />}
     </div>
   )
