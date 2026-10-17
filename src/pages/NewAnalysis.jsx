@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Link2, PenLine } from 'lucide-react'
+import { AlertTriangle, Link2, PenLine } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { normalizeUrl } from '../lib/analyzer'
+import { nonPublicLink, normalizeUrl } from '../lib/analyzer'
 
 export default function NewAnalysis() {
   const navigate = useNavigate()
@@ -11,9 +11,11 @@ export default function NewAnalysis() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const blocked = form.url.trim() ? nonPublicLink(form.url) : null
 
   async function submit(e) {
     e.preventDefault()
+    if (mode === 'auto' && blocked) return setError('Cambia a evaluación manual o usa la URL publicada del proyecto.')
     setBusy(true)
     setError(null)
     const rawUrl = form.url.trim()
@@ -68,6 +70,14 @@ export default function NewAnalysis() {
               onChange={set('url')}
             />
           </label>
+        )}
+        {mode === 'auto' && blocked && (
+          <div className="alert alert-warn link-warning" role="status">
+            <p><AlertTriangle size={16} className="inline-icon" aria-hidden="true" /><strong>Este link no se puede analizar automáticamente.</strong> {blocked.message}</p>
+            <button type="button" className="btn btn-secondary" onClick={() => setMode('manual')}>
+              <PenLine size={18} aria-hidden="true" /> Evaluar a mano y guardar el link como referencia
+            </button>
+          </div>
         )}
         <label className="field">
           <span>Nombre del proyecto</span>

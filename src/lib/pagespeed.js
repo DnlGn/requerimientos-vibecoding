@@ -282,5 +282,9 @@ async function runOnce(url, strategy) {
     if (/FAILED_DOCUMENT_REQUEST|ERRORED_DOCUMENT_REQUEST|NO_FCP|DNS/i.test(msg)) throw new Error('Lighthouse no pudo cargar la página (¿la URL está caída o es privada?).')
     throw new Error(msg)
   }
+  const final = data.lighthouseResult.finalDisplayedUrl || data.lighthouseResult.finalUrl || ''
+  if (/^https:\/\/(accounts\.google\.com|vercel\.com\/login|login\.microsoftonline\.com)/.test(final)) {
+    throw new Error('La página no es pública: redirige a un inicio de sesión. Usa la URL publicada del proyecto.')
+  }
   return summarize(data)
 }

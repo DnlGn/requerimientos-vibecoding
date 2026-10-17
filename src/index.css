@@ -237,14 +237,17 @@ svg.lucide { flex-shrink: 0; }
 /* ---------- Dashboard ---------- */
 .filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: center; }
 .filters select.input { flex: 0 1 200px; }
-.project-grid { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; grid-template-columns: 1fr; }
-@media (min-width: 720px) { .project-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1200px) { .project-grid { grid-template-columns: repeat(3, 1fr); } }
+/* minmax(0, 1fr): sin esto, un link largo (nowrap) ensancha la columna y la grilla se sale de la pantalla. */
+.project-grid { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.project-grid > li { min-width: 0; }
+@media (min-width: 640px) { .project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .project-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .project-card { display: flex; gap: 16px; align-items: flex-start; text-decoration: none; color: inherit; height: 100%; transition: border-color 0.15s, transform 0.15s; }
 .project-card:hover { border-color: var(--primary); }
 .project-card:active { transform: scale(0.99); }
 .project-card-body { min-width: 0; flex: 1; }
-.project-card-body h3 { margin-bottom: 2px; }
+.project-card-body h3 { margin-bottom: 2px; overflow-wrap: anywhere; }
+.project-card .icon-line .truncate { flex: 1; min-width: 0; }
 .project-card-body p { margin-bottom: 6px; }
 .empty { text-align: center; padding: 48px 24px; display: flex; flex-direction: column; align-items: center; }
 .empty-icon { color: var(--primary); margin: 0 auto 12px; display: block; }
@@ -261,6 +264,8 @@ svg.lucide { flex-shrink: 0; }
 .mode-option.selected { border-color: var(--primary); background: var(--primary-soft); }
 .mode-option:has(input:focus-visible) { outline: 3px solid var(--primary); outline-offset: 2px; }
 .mode-icon { color: var(--primary); margin-bottom: 4px; }
+.link-warning { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.link-warning p { margin: 0; }
 .form-actions { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
 
 /* ---------- Score ring ---------- */
@@ -280,6 +285,7 @@ svg.lucide { flex-shrink: 0; }
 }
 .editor-head h1 { font-size: 1.35rem; margin: 0; }
 .editor-title { min-width: 0; }
+.editor-title a { overflow-wrap: anywhere; }
 .editor-title p { margin: 2px 0 0; }
 .back-link {
   display: grid; place-items: center; width: var(--tap); height: var(--tap); border-radius: 12px;
@@ -504,7 +510,7 @@ svg.lucide { flex-shrink: 0; }
 .report-hero h1 { font-size: clamp(2rem, 5vw, 3rem); margin: 6px 0 10px; }
 .report-hero a { color: #fff; }
 .eyebrow { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; }
-.report-meta { font-size: 1.05rem; opacity: 0.95; }
+.report-meta { font-size: 1.05rem; opacity: 0.95; overflow-wrap: anywhere; }
 .report-date { opacity: 0.75; margin: 0; }
 .report-score { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 28px; background: #fff; border-radius: 24px; box-shadow: 0 10px 40px rgb(0 0 0 / 0.2); }
 .report-score .ring-text strong { color: #161a26; }

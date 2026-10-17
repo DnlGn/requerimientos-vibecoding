@@ -33,6 +33,14 @@ function isPrivateHost(host: string) {
     (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
 }
 
+const LOGIN_HOSTS = ["accounts.google.com", "login.microsoftonline.com", "auth.vercel.com", "app.netlify.com"];
+
+function isLoginWall(requested: URL, final: URL) {
+  if (LOGIN_HOSTS.includes(final.hostname)) return true;
+  // Redirección a otro dominio cuya ruta es de login (p. ej. vercel.com/login, github.com/login).
+  return final.hostname !== requested.hostname && /\/(login|signin|sign-in|sso)(\/|$|\?)/i.test(final.pathname);
+}
+
 async function timedFetch(url: string, timeoutMs = 12000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -212,6 +220,11 @@ Deno.serve(async (req) => {
   }
 
   const finalUrl = new URL(page.url || target.toString());
+  // Si la URL termina en un inicio de sesión (AI Studio, previews protegidos de Vercel, etc.)
+  // se avisa en vez de analizar la página de login como si fuera el proyecto.
+  if (isLoginWall(target, finalUrl)) {
+    return json({ error: `La página no es pública: redirige a un inicio de sesión (${finalUrl.host}). Usa la URL publicada del proyecto.` }, 422);
+  }
   const origin = new URL(finalUrl.origin + "/");
   const html = page.text;
   const doc = new DOMParser().parseFromString(html, "text/html");
